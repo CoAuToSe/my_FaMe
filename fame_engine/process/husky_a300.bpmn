@@ -11,34 +11,18 @@
 var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/platform/cmd_vel");
 
-function sleep(milliseconds) {
-  var start = new Date().getTime();
-  for (var i = 0; i &lt; 1e7; i++) {
-    if ((new Date().getTime() - start) &gt; milliseconds){
-      break;
-    }
-  }
-}
-
 // will probably skip the first one
 for( let izaeaz = 0; izaeaz &lt; 20; izaeaz++){
-    publisher.publish({
-        header: {
-            frame_id: "teleop_twist_joy"
-        }, twist: {
-            linear: {x: 0.3, y: 0.0, z: 0.0},
-            angular: {x: 0.0, y: 0.0, z: 0.0}
-        }
-    });
-    sleep(100);
-    publisher.publish({
-        header: {
-            frame_id: "teleop_twist_joy"
-        }, twist: {
-            linear: {x: 0.3, y: 0.0, z: 0.0},
-            angular: {x: 0.0, y: 0.0, z: 0.0}
-        }
-    });
+    setTimeout({
+            publisher.publish({
+            header: {
+                frame_id: "teleop_twist_joy"
+            }, twist: {
+                linear: {x: 0.3, y: 0.0, z: 0.0},
+                angular: {x: 0.0, y: 0.0, z: 0.0}
+            }
+        });
+    }, 100*izaeaz);
 }
 
 
