@@ -12,7 +12,7 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/platform/cmd_vel");
 
 // will probably skip the first one
-for( let izaeaz = 0; izaeaz < 5; izaeaz++){
+for( let izaeaz = 0; izaeaz &lt; 5; izaeaz++){
     publisher.publish({
         header: {
             frame_id: "teleop_twist_joy"
