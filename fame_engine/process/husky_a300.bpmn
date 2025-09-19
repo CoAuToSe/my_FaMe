@@ -21,7 +21,7 @@ function sleep(milliseconds) {
 }
 
 // will probably skip the first one
-for( let izaeaz = 0; izaeaz &lt; 5; izaeaz++){
+for( let izaeaz = 0; izaeaz &lt; 20; izaeaz++){
     publisher.publish({
         header: {
             frame_id: "teleop_twist_joy"
