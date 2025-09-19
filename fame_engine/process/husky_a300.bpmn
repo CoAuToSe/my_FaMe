@@ -9,11 +9,19 @@
             <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
             <bpmn:script>
 var node = this.environment.variables.ros_node;
-const publisher = node.createPublisher("geometry_msgs/msg/Twist", "/a300_00041/cmd_vel");
+const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/cmd_vel");
 
 publisher.publish({
-    linear: {x: 1.0, y: 0.0, z: 0.0},
-    angular: {x: 0.0, y: 0.0, z: 0.0}
+    header: {
+        stamp: {
+            sec: 0,
+            nanosec: 0
+        },
+        frame_id: "base_link"
+    }, twist: {
+        linear: {x: 1.0, y: 0.0, z: 0.0},
+        angular: {x: 0.0, y: 0.0, z: 0.0}
+    }
 });
 
 
@@ -34,13 +42,20 @@ next();</bpmn:script>
             <bpmn:outgoing>Flow_17duhnu</bpmn:outgoing>
             <bpmn:script>
 var node = this.environment.variables.ros_node;
-const publisher = node.createPublisher("geometry_msgs/msg/Twist", "/a300_00041/cmd_vel");
+const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/cmd_vel");
 
 publisher.publish({
-    linear: {x: 0.0, y: 0.0, z: 0.0},
-    angular: {x: 0.0, y: 0.0, z: 0.0}
+    header: {
+        stamp: {
+            sec: 0,
+            nanosec: 0
+        },
+        frame_id: "base_link"
+    }, twist: {
+        linear: {x: 0.0, y: 0.0, z: 0.0},
+        angular: {x: 0.0, y: 0.0, z: 0.0}
+    }
 });
-
 
 this.environment.services.console.log("one lights yellow end");
 
