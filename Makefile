@@ -552,7 +552,7 @@ print_supported_version:
 HOME_DIR := $(PWD)
 ROS2_SHARED := $(HOME_DIR)/ros2_shared
 TELLO_MSGS := $(HOME_DIR)/tello_msgs
-FAME := $(HOME_DIR)/fame
+FAME := $(HOME_DIR)/my_FaMe
 FAME_AGRI := $(FAME)/fame_agricultural
 FAME_ENGINE := $(FAME)/fame_engine
 FAME_SIMU := $(FAME)/fame_simulation
