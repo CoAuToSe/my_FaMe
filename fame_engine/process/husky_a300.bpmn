@@ -13,7 +13,7 @@ const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_
 
 // will probably skip the first one
 for( let izaeaz = 0; izaeaz &lt; 20; izaeaz++){
-    setTimeout({
+    setTimeout(() =&gt; {
             publisher.publish({
             header: {
                 frame_id: "teleop_twist_joy"
