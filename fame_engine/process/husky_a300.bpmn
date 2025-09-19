@@ -42,10 +42,6 @@ const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_
 
 publisher.publish({
     header: {
-        stamp: {
-            sec: 0,
-            nanosec: 0
-        },
         frame_id: "base_link"
     }, twist: {
         linear: {x: 0.0, y: 0.0, z: 0.0},
