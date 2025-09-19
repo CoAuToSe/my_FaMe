@@ -12,22 +12,24 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/platform/cmd_vel");
 
 // will probably skip the first one
-publisher.publish({
-    header: {
-        frame_id: "teleop_twist_joy"
-    }, twist: {
-        linear: {x: 0.3, y: 0.0, z: 0.0},
-        angular: {x: 0.0, y: 0.0, z: 0.0}
-    }
-});
-publisher.publish({
-    header: {
-        frame_id: "teleop_twist_joy"
-    }, twist: {
-        linear: {x: 0.3, y: 0.0, z: 0.0},
-        angular: {x: 0.0, y: 0.0, z: 0.0}
-    }
-});
+for( let izaeaz = 0; izaeaz < 5; izaeaz++){
+    publisher.publish({
+        header: {
+            frame_id: "teleop_twist_joy"
+        }, twist: {
+            linear: {x: 0.3, y: 0.0, z: 0.0},
+            angular: {x: 0.0, y: 0.0, z: 0.0}
+        }
+    });
+    publisher.publish({
+        header: {
+            frame_id: "teleop_twist_joy"
+        }, twist: {
+            linear: {x: 0.3, y: 0.0, z: 0.0},
+            angular: {x: 0.0, y: 0.0, z: 0.0}
+        }
+    });
+}
 
 
 this.environment.services.console.log("one lights yellow");
