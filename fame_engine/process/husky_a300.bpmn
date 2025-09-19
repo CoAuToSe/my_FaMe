@@ -13,7 +13,7 @@ const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_
 
 publisher.publish({
     header: {
-        frame_id: "base_link"
+        frame_id: "teleop_twist_joy"
     }, twist: {
         linear: {x: 0.1, y: 0.0, z: 0.0},
         angular: {x: 0.0, y: 0.0, z: 0.0}
@@ -42,7 +42,7 @@ const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_
 
 publisher.publish({
     header: {
-        frame_id: "base_link"
+        frame_id: "teleop_twist_joy"
     }, twist: {
         linear: {x: 0.0, y: 0.0, z: 0.0},
         angular: {x: 0.0, y: 0.0, z: 0.0}
