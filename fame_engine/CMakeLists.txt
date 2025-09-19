@@ -69,8 +69,7 @@ install(DIRECTORY
 # find_package(ament_cmake REQUIRED)
 
 add_custom_target(${PROJECT_NAME}_npm ALL
-  COMMAND bash -lc "export NVM_DIR="$$HOME/.nvm" && . $$NVM_DIR/nvm.sh"
-  COMMAND bash -lc "npm install --no-progress --silent rclnodejs@latest"
+  COMMAND bash -lc "export NVM_DIR="$$HOME/.nvm" && . $$NVM_DIR/nvm.sh && npm install --no-progress --silent rclnodejs@latest"
   # COMMAND bash -lc "npm install rclnodejs@latest"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
