@@ -12,7 +12,7 @@ var topic_dict = {};
 
 var source = '';
 var engine_env = {};
-var process_path = '/home/ubuntu/mbros/fame_engine/process/';
+var process_path = '../fame_engine/process/';
 var process_dict = {};
 
 //console.log(__dirname.split('/install')[0] + '/process')
