@@ -9,15 +9,11 @@
             <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
             <bpmn:script>
 var node = this.environment.variables.ros_node;
-const publisher = node.createPublisher("clearpath_platform_msgs/msg/Lights", "/a300_00041/platform/cmd_lights");
+const publisher = node.createPublisher("geometry_msgs/msg/Twist", "/a300_00041/cmd_vel");
 
 publisher.publish({
-    lights: [
-        { red: 255, green: 255, blue: 0 }, // Jaune
-        { red: 0, green: 0, blue: 0 },     // Éteint
-        { red: 0, green: 0, blue: 0 },     // Éteint
-        { red: 0, green: 0, blue: 0 }      // Éteint
-    ]
+    linear: {x: 1.0, y: 0.0, z: 0.0},
+    angular: {x: 0.0, y: 0.0, z: 0.0}
 });
 
 
@@ -38,15 +34,11 @@ next();</bpmn:script>
             <bpmn:outgoing>Flow_17duhnu</bpmn:outgoing>
             <bpmn:script>
 var node = this.environment.variables.ros_node;
-const publisher = node.createPublisher("clearpath_platform_msgs/msg/Lights", "/a300_00041/platform/cmd_lights");
+const publisher = node.createPublisher("geometry_msgs/msg/Twist", "/a300_00041/cmd_vel");
 
 publisher.publish({
-    lights: [
-        { red: 255, green: 255, blue: 0 }, // Jaune
-        { red: 0, green: 0, blue: 0 },     // Éteint
-        { red: 0, green: 0, blue: 0 },     // Éteint
-        { red: 0, green: 0, blue: 0 }      // Éteint
-    ]
+    linear: {x: 0.0, y: 0.0, z: 0.0},
+    angular: {x: 0.0, y: 0.0, z: 0.0}
 });
 
 
