@@ -191,7 +191,9 @@ FILTERED_TOPICS = [
     "/tello_7/imu/data_raw",
     "/tello_7/image_raw",
     "/tello_7/tello_7/image_raw",
-    "/tello_7/tello_7/camera_info"
+    "/tello_7/tello_7/camera_info",
+    "/a300_00041/vcan0/tx",
+    "/a300_00041/vcan0/rx",
 ]
 
 
