@@ -15,7 +15,15 @@ publisher.publish({
     header: {
         frame_id: "teleop_twist_joy"
     }, twist: {
-        linear: {x: 0.1, y: 0.0, z: 0.0},
+        linear: {x: 0.3, y: 0.0, z: 0.0},
+        angular: {x: 0.0, y: 0.0, z: 0.0}
+    }
+});
+publisher.publish({
+    header: {
+        frame_id: "teleop_twist_joy"
+    }, twist: {
+        linear: {x: 0.3, y: 0.0, z: 0.0},
         angular: {x: 0.0, y: 0.0, z: 0.0}
     }
 });
@@ -44,7 +52,7 @@ publisher.publish({
     header: {
         frame_id: "teleop_twist_joy"
     }, twist: {
-        linear: {x: 0.0, y: 0.0, z: 0.0},
+        linear: {x: 0.3, y: 0.0, z: 0.0},
         angular: {x: 0.0, y: 0.0, z: 0.0}
     }
 });
