@@ -12,7 +12,7 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 // will probably skip the first one
-for( let izaeaz = 0; izaeaz &lt; 20; izaeaz++){
+for( let izaeaz = 0; izaeaz &lt; 20 *2; izaeaz++){
     setTimeout(() =&gt; {
             publisher.publish({
             header: {
@@ -22,7 +22,7 @@ for( let izaeaz = 0; izaeaz &lt; 20; izaeaz++){
                 angular: {x: 0.0, y: 0.0, z: 0.0}
             }
         });
-    }, 100*izaeaz);
+    }, 100*izaeaz /2);
 }
 
 
