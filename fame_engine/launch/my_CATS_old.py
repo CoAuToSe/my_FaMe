@@ -25,10 +25,7 @@ def generate_launch_description():
         executable='node',
         output='screen',
         namespace='husky_a300',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'bpmn_name': 'husky_a300_L'
-        }],
+        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
             start_js_file
         ],
