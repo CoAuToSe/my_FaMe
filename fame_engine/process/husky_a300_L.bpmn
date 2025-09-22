@@ -12,7 +12,7 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 const speed = 0.0; // scale of the speed of the command
-const rot = 0.5; // scale of the rotation of the command
+const rot = 1.0; // scale of the rotation of the command
 const time_run = 31; // number of time this action will be performed
 const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
 const factor = 4; // depends on the time needed to transmit the information // assure running
@@ -73,7 +73,7 @@ publisher.publish({
     header: {
         frame_id: "teleop_twist_joy"
     }, twist: {
-        linear: {x: 0.3, y: 0.0, z: 0.0},
+        linear: {x: 0.0, y: 0.0, z: 0.0},
         angular: {x: 0.0, y: 0.0, z: 0.0}
     }
 });
