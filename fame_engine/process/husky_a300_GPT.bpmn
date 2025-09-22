@@ -7,51 +7,49 @@
         <bpmn:scriptTask id="Activity_0q0spcq" name="takeoff" scriptFormat="JavaScript">
             <bpmn:incoming>Flow_14zl0yu</bpmn:incoming>
             <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
-            <bpmn:script>
-// Récupère le node ROS2 (rclnodejs)
-const node = this.environment.variables.ros_node;
+<bpmn:script>
+    const node = this.environment.variables.ros_node;
+    const publisher = node.createPublisher(&quot;geometry_msgs/msg/Twist&quot;, &quot;/cmd_vel&quot;);
 
-// IMPORTANT: Twist (non-stamped) et bon topic
-const publisher = node.createPublisher("geometry_msgs/msg/Twist", "cmd_vel");
+    const rot = 0.7;
+    const speed = 0.0;
+    const duration_s = 3.1;
+    const hz = 20;
+    const period_ms = Math.round(1000 / hz);
+    const ticks_total = Math.round(duration_s * hz);
 
-// Paramètres mouvement
-const rot = 0.7;             // rad/s (≈ 40°/s)
-const speed = 0.0;           // m/s (ici rotation pure)
-const duration_s = 3.1;      // durée totale de rotation
-const hz = 20;               // fréquence de publication (watchdog friendly)
-const period_ms = Math.round(1000 / hz);
-const ticks_total = Math.round(duration_s * hz);
+    const cmd = { linear: { x: speed, y: 0.0, z: 0.0 }, angular: { x: 0.0, y: 0.0, z: rot } };
+    const zero = { linear: { x: 0.0, y: 0.0, z: 0.0 }, angular: { x: 0.0, y: 0.0, z: 0.0 } };
 
-// Messages Twist
-const cmd = { linear: {x: speed, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: rot} };
-const zero = { linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0} };
+    this.environment.services.console.log(&quot;cmd_vel &quot; + hz + &quot;Hz pendant &quot; + duration_s + &quot;s : v=&quot; + speed + &quot; m/s, w=&quot; + rot + &quot; rad/s&quot;);
 
-this.environment.services.console.log(
-  `cmd_vel à ${hz}Hz pendant ${duration_s}s : v=${speed} m/s, w=${rot} rad/s`
-);
+    const start = Date.now();
+    let lastTick = start - period_ms;
+    let sent = 0;
 
-let ticks = 0;
-const interval = setInterval(() =&gt; {
-  publisher.publish(cmd);
-  ticks += 1;
+    // boucle bloquante courte, publie a environ 20 Hz pendant 3.1 s
+    while (Date.now() - start &lt; duration_s * 1000) {
+        const now = Date.now();
+        if (now - lastTick &gt;= period_ms) {
+            publisher.publish(cmd);
+            lastTick += period_ms;
+            sent += 1;
+            if (sent &gt;= ticks_total) break;
+        }
+        // micro pause active pour laisser le moteur respirer sans timers
+        // 100 micro iterations environ
+        for (let i = 0; i &lt; 100; i++) {}
+    }
 
-  if (ticks &gt;= ticks_total) {
-    clearInterval(interval);
-
-    // Séquence d'arrêt robuste (2-3 zéros)
+    // sequence d arret robuste
     publisher.publish(zero);
-    setTimeout(() =&gt; publisher.publish(zero), period_ms);
-    setTimeout(() =&gt; {
-      publisher.publish(zero);
-      // Informe l'événement timer de la durée
-      this.environment.variables.nextTimerDuration = `PT${duration_s}S`;
-      next();
-    }, 2 * period_ms);
-  }
-}, period_ms);
+    publisher.publish(zero);
+    publisher.publish(zero);
 
-next();
-            </bpmn:script>
+    this.environment.variables.nextTimerDuration = &quot;PT&quot; + duration_s + &quot;S&quot;;
+    next();
+</bpmn:script>
+
         </bpmn:scriptTask>
         <bpmn:sequenceFlow id="Flow_14zl0yu" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
         <bpmn:intermediateCatchEvent id="Event_1t9d9el">
