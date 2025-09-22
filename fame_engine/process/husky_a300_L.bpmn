@@ -17,7 +17,9 @@ const time_run = 20; // number of time this action will be performed
 const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
 const factor = 4; // depends on the time needed to transmit the information // assure running
 
-this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" &omega;/s for "+time_run*time_scale_from_ms/1000+" second.");
+const time_in_second = time_run*time_scale_from_ms/1000;
+
+this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" &omega;/s for "+time_in_second+" second.");
 
 for( let ind = 0; ind &lt; time_run *factor; ind++){
     setTimeout(() =&gt; {
@@ -31,6 +33,9 @@ for( let ind = 0; ind &lt; time_run *factor; ind++){
         });
     }, time_scale_from_ms*ind /factor);
 }
+
+this.environment.variables.nextTimerDuration = "PT"+time_in_second+"S";
+
 next();
             </bpmn:script>
         </bpmn:scriptTask>
@@ -39,7 +44,9 @@ next();
             <bpmn:incoming>Flow_1913056</bpmn:incoming>
             <bpmn:outgoing>Flow_0zcyc0w</bpmn:outgoing>
             <bpmn:timerEventDefinition id="TimerEventDefinition_0z0agyt">
-                <bpmn:timeDuration xsi:type="tFormalExpression">PT1S</bpmn:timeDuration>
+                <bpmn:timeDuration xsi:type="tFormalExpression">
+                    ${environment.variables.nextTimerDuration}
+                </bpmn:timeDuration>
             </bpmn:timerEventDefinition>
         </bpmn:intermediateCatchEvent>
         <bpmn:sequenceFlow id="Flow_1913056" sourceRef="Activity_0q0spcq" targetRef="Event_1t9d9el" />
