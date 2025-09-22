@@ -3,6 +3,7 @@
 const { Engine } = require('bpmn-engine');
 const bent = require('bent');
 const rclnodejs = require('rclnodejs');
+const { Parameter, ParameterDescriptor, ParameterType } = rclnodejs;
 const { EventEmitter } = require('events');
 const listener = new EventEmitter();
 const fs = require('fs');
@@ -85,24 +86,36 @@ function mergeCallActivity() {
 
 rclnodejs.init().then(() => {
     //start ROS node
-    const node = rclnodejs.node('engine_node');
+    const node = rclnodejs.createNode('engine_node');
 
-    // function getArg(flag, def = undefined) {
-    //     const i = process.argv.indexOf(flag);
-    //     return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
-    // }
+    function getArg(flag, def = undefined) {
+        const i = process.argv.indexOf(flag);
+        return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
+    }
+    const bpmn_name = getArg('--bpmn', node.namespace().replace('/', ''));
     // const userName = getArg('--name', 'world');
     // const mode     = getArg('--mode', 'normal');
 
-    // Déclarations + valeurs par défaut
-    node.declareParameter('bpmn_name', node.namespace().replace('/', '_'));
-    // node.declareParameter('frame_id', 'map');
-    // node.declareParameter('enabled', true);
+    // // Déclarations + valeurs par défaut
+    // node.declareParameter('bpmn_name', node.namespace().replace('/', '_'));
+    // // node.declareParameter('frame_id', 'map');
+    // // node.declareParameter('enabled', true);
 
-    // Lecture
-    const bpmn_name = node.getParameter('bpmn_name').value;
-    // const frameId = node.getParameter('frame_id').value;
-    // const enabled = node.getParameter('enabled').value;
+    // // Lecture
+    // const bpmn_name = node.getParameter('bpmn_name').value;
+    // // const frameId = node.getParameter('frame_id').value;
+    // // const enabled = node.getParameter('enabled').value;
+
+    // node.declareParameters([
+    //         new Parameter('bpmn_name', ParameterType.PARAMETER_STRING, node.namespace().replace('/', '')),
+    //         // new Parameter('rate', ParameterType.PARAMETER_INTEGER, 10),
+    //         // new Parameter('frame_id', ParameterType.PARAMETER_STRING, 'map'),
+    //     ], [
+    //         new ParameterDescriptor('bpmn_name', ParameterType.PARAMETER_STRING, ''),
+    //         // new ParameterDescriptor('rate', ParameterType.PARAMETER_INTEGER, 'Hz'),
+    //         // new ParameterDescriptor('frame_id', ParameterType.PARAMETER_STRING, 'TF frame'),
+    // ]);
+    // const bpmn_name = node.getParameter('bpmn_name').value;
 
     // var process_name = node.namespace().replace('/', '');
     // source = (fs.readFileSync(process_path + process_name + '.bpmn', 'utf8'));
@@ -226,7 +239,8 @@ rclnodejs.init().then(() => {
     });
 
     engine.on('end', (execution) => {
-        console.log('Ended:', process_name);
+        // console.log('Ended:', process_name);
+        console.log('Ended:', bpmn_name);
     });
 
     function set(activity, name, value) {
