@@ -23,32 +23,34 @@
 
     this.environment.services.console.log(&quot;cmd_vel &quot; + hz + &quot;Hz pendant &quot; + duration_s + &quot;s : v=&quot; + speed + &quot; m/s, w=&quot; + rot + &quot; rad/s&quot;);
 
-    const start = Date.now();
-    let lastTick = start - period_ms;
-    let sent = 0;
+    let ticks = 0;
 
-    // boucle bloquante courte, publie a environ 20 Hz pendant 3.1 s
-    while (Date.now() - start &lt; duration_s * 1000) {
-        const now = Date.now();
-        if (now - lastTick &gt;= period_ms) {
-            publisher.publish(cmd);
-            lastTick += period_ms;
-            sent += 1;
-            if (sent &gt;= ticks_total) break;
+    // cadence avec timers Node exposes via services
+    const motionId = this.environment.services.setInterval(() =&gt; {
+        publisher.publish(cmd);
+        ticks += 1;
+
+        if (ticks &gt;= ticks_total) {
+            this.environment.services.clearInterval(motionId);
+
+            // envoie plusieurs zeros pour assurer l arret
+            let zeros = 0;
+            const stopId = this.environment.services.setInterval(() =&gt; {
+                publisher.publish(zero);
+                zeros += 1;
+                if (zeros &gt;= 3) {
+                    this.environment.services.clearInterval(stopId);
+                    this.environment.variables.nextTimerDuration = &quot;PT&quot; + duration_s + &quot;S&quot;;
+                    next();
+                }
+            }, period_ms);
         }
-        // micro pause active pour laisser le moteur respirer sans timers
-        // 100 micro iterations environ
-        for (let i = 0; i &lt; 100; i++) {}
-    }
-
-    // sequence d arret robuste
-    publisher.publish(zero);
-    publisher.publish(zero);
-    publisher.publish(zero);
-
-    this.environment.variables.nextTimerDuration = &quot;PT&quot; + duration_s + &quot;S&quot;;
-    next();
+    }, period_ms);
 </bpmn:script>
+
+
+
+
 
         </bpmn:scriptTask>
         <bpmn:sequenceFlow id="Flow_14zl0yu" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />

@@ -9,7 +9,7 @@
             <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
 <bpmn:script>
     const node = this.environment.variables.ros_node;
-    const publisher = node.createPublisher(&quot;geometry_msgs/msg/TwistStamped&quot;, &quot;cmd_vel&quot;);
+    const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
     const rot = 0.7;
     const speed = 0.0;
@@ -21,7 +21,7 @@
     const cmd = { header: {frame_id: "teleop_twist_joy"}, linear: { x: speed, y: 0.0, z: 0.0 }, angular: { x: 0.0, y: 0.0, z: rot } };
     const zero = { header: {frame_id: "teleop_twist_joy"}, linear: { x: 0.0, y: 0.0, z: 0.0 }, angular: { x: 0.0, y: 0.0, z: 0.0 } };
 
-    this.environment.services.console.log(&quot;cmd_vel &quot; + hz + &quot;Hz pendant &quot; + duration_s + &quot;s : v=&quot; + speed + &quot; m/s, w=&quot; + rot + &quot; rad/s&quot;);
+    this.environment.services.console.log("cmd_vel " + hz + "Hz pendant " + duration_s + "s : v=" + speed + " m/s, w=" + rot + " rad/s");
 
     const start = Date.now();
     let lastTick = start - period_ms;
@@ -46,7 +46,7 @@
     publisher.publish(zero);
     publisher.publish(zero);
 
-    this.environment.variables.nextTimerDuration = &quot;PT&quot; + duration_s + &quot;S&quot;;
+    this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
     next();
 </bpmn:script>
 

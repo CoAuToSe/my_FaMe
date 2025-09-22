@@ -229,6 +229,13 @@ rclnodejs.init().then(() => {
             get: bent('json'),
             set,
             console,
+
+            // timers Node déjà exposés si besoin
+            setTimeout,
+            clearTimeout,
+            setInterval,
+            clearInterval,
+
         },
         moddleOptions: {
             camunda: require('camunda-bpmn-moddle/resources/camunda'),
