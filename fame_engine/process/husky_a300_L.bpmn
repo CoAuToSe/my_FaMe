@@ -11,23 +11,28 @@
 var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
-// will probably skip the first one
-for( let izaeaz = 0; izaeaz &lt; 20 *2; izaeaz++){
+const speed = 0.3; // scale of the speed of the command
+const rot = 0.0; // scale of the rotation of the command
+const time_run = 20; // number of time this action will be performed
+const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
+const factor = 4; // depends on the time needed to transmit the information // assure running
+
+this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" &omega;/s for "+time_run*time_scale_from_ms/1000+" second.");
+
+for( let ind = 0; ind &lt; time_run *factor; ind++){
     setTimeout(() =&gt; {
             publisher.publish({
             header: {
                 frame_id: "teleop_twist_joy"
             }, twist: {
-                linear: {x: 0.3, y: 0.0, z: 0.0},
-                angular: {x: 0.0, y: 0.0, z: 0.0}
+                linear: {x: speed, y: 0.0, z: 0.0},
+                angular: {x: 0.0, y: 0.0, z: rot}
             }
         });
-    }, 100*izaeaz /2);
+    }, time_scale_from_ms*ind /factor);
 }
-
-
-this.environment.services.console.log("one lights yellowlkhlgkg");
-next();</bpmn:script>
+next();
+            </bpmn:script>
         </bpmn:scriptTask>
         <bpmn:sequenceFlow id="Flow_14zl0yu" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
         <bpmn:intermediateCatchEvent id="Event_1t9d9el">
