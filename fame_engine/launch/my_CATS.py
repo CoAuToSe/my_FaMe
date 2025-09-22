@@ -15,7 +15,7 @@ def generate_launch_description():
     share_directory = get_package_share_directory('fame_engine')
 
     launch_args = [
-        DeclareLaunchArgument('namespace', default_value='/a300_00041'),
+        DeclareLaunchArgument('namespace', default_value='/a300_00041/platform'),
         DeclareLaunchArgument('bpmn', default_value='husky_a300_GPT_mine')
     ]
     # revise path to your nodejs start file
