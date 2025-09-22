@@ -9,7 +9,7 @@
             <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
             <bpmn:script>
 var node = this.environment.variables.ros_node;
-const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/platform/cmd_vel");
+const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 // will probably skip the first one
 for( let izaeaz = 0; izaeaz &lt; 20; izaeaz++){
@@ -43,7 +43,7 @@ next();</bpmn:script>
             <bpmn:outgoing>Flow_17duhnu</bpmn:outgoing>
             <bpmn:script>
 var node = this.environment.variables.ros_node;
-const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "/a300_00041/platform/cmd_vel");
+const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 publisher.publish({
     header: {
