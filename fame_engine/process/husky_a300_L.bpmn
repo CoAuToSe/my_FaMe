@@ -19,7 +19,7 @@ const factor = 4; // depends on the time needed to transmit the information // a
 
 const time_in_second = time_run*time_scale_from_ms/1000;
 
-this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" &omega;/s for "+time_in_second+" second.");
+this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" \"&omega;\"/s for "+time_in_second+" second.");
 
 for( let ind = 0; ind &lt; time_run *factor; ind++){
     setTimeout(() =&gt; {
