@@ -18,7 +18,7 @@ const rot = 0.1; // scale of the rotation of the command // 45° = 0.5 ; 90° = 
 // const factor = 4; // depends on the time needed to transmit the information // assure running
 
 
-const duration_s = 10;
+const duration_s = 10*9/8;
 const duration_bigint = BigInt(String(duration_s*1_000_000_000));
 const hz = 200;
 const hz_bigint = BigInt(String(1_000_000_000/hz));
