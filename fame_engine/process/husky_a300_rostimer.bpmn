@@ -19,6 +19,7 @@ const rot = 0.7; // scale of the rotation of the command // 45° = 0.5 ; 90° = 
 
 
 const duration_s = 3.1;
+const duration_bigint = BigInt(String(duration_s*1_000_000_000));
 const hz = 20;
 const period_ms = Math.round(1000 / hz);
 const ticks_total = Math.round(duration_s * hz);
@@ -39,18 +40,19 @@ function some() { // période en ms (100ms = 10 Hz)
     });
 }
 
-//const timer = node.createTimer(100, some);
-
+const timer = node.createTimer(duration_bigint, some);
+/*
 const timer = node.createTimer(500_000_000n, () =&gt; {
-    this.environment.services.console.log("tick every 1s");
-}); // period en millisecondes
-
+    this.environment.services.console.log("tick every 0,5s");
+});
+*/
 // Arrêter proprement après 5 secondes (exemple)
 setTimeout(() =&gt; {
     timer.cancel();          // stoppe le timer ROS
     //node.destroy();          // détruit le node
     //rclnodejs.shutdown();    // ferme le contexte ROS 2
-}, duration_s);
+    next();
+}, 5_000);
 
 /*
 const start = Date.now();
@@ -102,9 +104,8 @@ setTimeout(() =&gt; {
     });
 }, time_scale_from_ms*time_run);
 */
-this.environment.variables.nextTimerDuration = "PT"+time_in_second+"S";
-
-next();
+//this.environment.variables.nextTimerDuration = "PT"+time_in_second+"S";
+this.environment.variables.nextTimerDuration = "PT1S";
             </bpmn:script>
         </bpmn:scriptTask>
         <bpmn:sequenceFlow id="Flow_14zl0yu" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
