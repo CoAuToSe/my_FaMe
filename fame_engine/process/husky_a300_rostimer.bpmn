@@ -12,13 +12,13 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 const speed = 0.0; // scale of the speed of the command
-const rot = 0.1; // scale of the rotation of the command // 45° = 0.5 ; 90° = 0.7 ; 180° = 1
+const rot = 0.2; // scale of the rotation of the command // 45° = 0.5 ; 90° = 0.7 ; 180° = 1
+const duration_s = 10;
 // const time_run = 31; // number of time this action will be performed // 45° = 31 ; 90° = 31 ; 180° = 31
 // const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
 // const factor = 4; // depends on the time needed to transmit the information // assure running
 
 
-const duration_s = 10*9/8;
 const duration_bigint = BigInt(String(duration_s*1_000_000_000));
 const hz = 200;
 const hz_bigint = BigInt(String(1_000_000_000/hz));
@@ -33,8 +33,10 @@ this.environment.services.console.log("going at "+speed+" m/s and turning at "+r
 function some() { // période en ms (100ms = 10 Hz)
     publisher.publish({
         header: {
+            stamp: Date.now(),
             frame_id: "teleop_twist_joy"
-        }, twist: {
+        }, 
+        twist: {
             linear: {x: speed, y: 0.0, z: 0.0},
             angular: {x: 0.0, y: 0.0, z: rot}
         }
