@@ -23,7 +23,7 @@ this.environment.services.console.log("going at "+speed+" m/s and turning at "+r
 
 for( let ind = 0; ind &lt; time_run *factor; ind++){
     setTimeout(() =&gt; {
-            publisher.publish({
+        publisher.publish({
             header: {
                 frame_id: "teleop_twist_joy"
             }, twist: {
