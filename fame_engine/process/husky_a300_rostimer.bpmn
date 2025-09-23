@@ -12,7 +12,7 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 const speed = 0.0; // scale of the speed of the command
-const rot = 0.7; // scale of the rotation of the command // 45° = 0.5 ; 90° = 0.7 ; 180° = 1
+const rot = 1.0; // scale of the rotation of the command // 45° = 0.5 ; 90° = 0.7 ; 180° = 1
 // const time_run = 31; // number of time this action will be performed // 45° = 31 ; 90° = 31 ; 180° = 31
 // const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
 // const factor = 4; // depends on the time needed to transmit the information // assure running
