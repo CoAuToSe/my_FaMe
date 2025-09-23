@@ -9,49 +9,51 @@
             <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
 <bpmn:script>
     const node = this.environment.variables.ros_node;
-    const publisher = node.createPublisher("geometry_msgs/msg/Twist", "/cmd_vel");
+    const publisher = node.createPublisher(&quot;geometry_msgs/msg/Twist&quot;, &quot;/cmd_vel&quot;);
 
-    const rot = 0.7;
-    const speed = 0.0;
-    const duration_s = 3.1;
-    const hz = 20;
+    // params mouvement
+    const speed = 0.0;        // m/s (rotation pure)
+    const rot = 0.7;          // rad/s
+    const duration_s = 3.1;   // durée totale
+    const hz = 20;            // frequence publication
+
+    // conversions
     const period_ms = Math.round(1000 / hz);
+    const period_ns = BigInt(period_ms) * 1000000n;  // BigInt en ns
     const ticks_total = Math.round(duration_s * hz);
 
+    // messages
     const cmd = { linear: { x: speed, y: 0.0, z: 0.0 }, angular: { x: 0.0, y: 0.0, z: rot } };
     const zero = { linear: { x: 0.0, y: 0.0, z: 0.0 }, angular: { x: 0.0, y: 0.0, z: 0.0 } };
 
-    this.environment.services.console.log("cmd_vel " + hz + "Hz pendant " + duration_s + "s : v=" + speed + " m/s, w=" + rot + " rad/s");
+    this.environment.services.console.log(&quot;cmd_vel &quot; + hz + &quot;Hz pendant &quot; + duration_s + &quot;s : v=&quot; + speed + &quot; m/s, w=&quot; + rot + &quot; rad/s&quot;);
 
     let ticks = 0;
 
-    // cadence avec timers Node exposes via services
-    const motionId = this.environment.services.setInterval(() =&gt; {
+    // timer ROS en BigInt ns, signature a 2 arguments
+    const motionTimer = node.createTimer(period_ns, () =&gt; {
         publisher.publish(cmd);
         ticks += 1;
 
         if (ticks &gt;= ticks_total) {
-            this.environment.services.clearInterval(motionId);
+            // arret du timer principal
+            if (motionTimer.cancel) motionTimer.cancel();
 
-            // envoie plusieurs zeros pour assurer l arret
+            // sequence d arret: plusieurs zeros
             let zeros = 0;
-            const stopId = this.environment.services.setInterval(() =&gt; {
+            const stopTimer = node.createTimer(period_ns, () =&gt; {
                 publisher.publish(zero);
                 zeros += 1;
                 if (zeros &gt;= 3) {
-                    this.environment.services.clearInterval(stopId);
-                    this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+                    if (stopTimer.cancel) stopTimer.cancel();
+                    // pour l IntermediateCatchEvent
+                    this.environment.variables.nextTimerDuration = &quot;PT&quot; + duration_s + &quot;S&quot;;
                     next();
                 }
-            }, period_ms);
+            });
         }
-    }, period_ms);
+    });
 </bpmn:script>
-
-
-
-
-
         </bpmn:scriptTask>
         <bpmn:sequenceFlow id="Flow_14zl0yu" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
         <bpmn:intermediateCatchEvent id="Event_1t9d9el">
