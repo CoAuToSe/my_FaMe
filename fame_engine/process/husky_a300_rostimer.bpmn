@@ -47,6 +47,7 @@ const timer = node.createTimer(500_000_000n, () =&gt; {
     this.environment.services.console.log("tick every 0,5s");
 });
 */
+/*
 // Arrêter proprement après 5 secondes (exemple)
 setTimeout(() =&gt; {
     timer.cancel();          // stoppe le timer ROS
@@ -54,6 +55,15 @@ setTimeout(() =&gt; {
     //rclnodejs.shutdown();    // ferme le contexte ROS 2
     next();
 }, 5_000);
+*/
+
+const timer2 = node.createTimer(duration_bigint, () =&gt; {    
+    timer.cancel();          // stoppe le timer ROS  
+    timer2.cancel();          // stoppe le timer ROS
+    //node.destroy();          // détruit le node
+    //rclnodejs.shutdown();    // ferme le contexte ROS 2
+    next();
+});
 
 /*
 const start = Date.now();
