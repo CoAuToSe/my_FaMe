@@ -20,7 +20,7 @@ const rot = 0.7; // scale of the rotation of the command // 45° = 0.5 ; 90° = 
 
 const duration_s = 3.1;
 const duration_bigint = BigInt(String(duration_s*1_000_000_000));
-const hz = 20;
+const hz = 200;
 const hz_bigint = BigInt(String(1_000_000_000/hz));
 const period_ms = Math.round(1000 / hz);
 const ticks_total = Math.round(duration_s * hz);
