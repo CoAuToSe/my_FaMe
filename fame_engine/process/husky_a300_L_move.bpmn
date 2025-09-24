@@ -73,8 +73,8 @@ this.environment.variables.nextTimerDuration = "PT1S";
 var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
-const speed = 0.2; // scale of the speed of the command
-const rot = 0.0; // scale of the rotation of the command // 45� = 0.5 ; 90� = 0.7 ; 180� = 1
+const speed = 0.0; // scale of the speed of the command
+const rot = 0.2; // scale of the rotation of the command // 45� = 0.5 ; 90� = 0.7 ; 180� = 1
 const duration_s = 10;
 // const time_run = 31; // number of time this action will be performed // 45� = 31 ; 90� = 31 ; 180� = 31
 // const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
@@ -186,18 +186,49 @@ this.environment.variables.nextTimerDuration = "PT1S";
 var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
-publisher.publish({
-    header: {
-        frame_id: "teleop_twist_joy"
-    }, twist: {
-        linear: {x: 0.0, y: 0.0, z: 0.0},
-        angular: {x: 0.0, y: 0.0, z: 0.0}
-    }
+const speed = -0.5; // scale of the speed of the command
+const rot = 0.0; // scale of the rotation of the command // 45� = 0.5 ; 90� = 0.7 ; 180� = 1
+const duration_s = 0.5;
+// const time_run = 31; // number of time this action will be performed // 45� = 31 ; 90� = 31 ; 180� = 31
+// const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
+// const factor = 4; // depends on the time needed to transmit the information // assure running
+
+
+const duration_bigint = BigInt(String(Math.round(duration_s*1_000_000_000)));
+const hz = 200;
+const hz_bigint = BigInt(String(Math.round(1_000_000_000/hz)));
+const period_ms = Math.round(1000 / hz);
+const ticks_total = Math.round(duration_s * hz);
+
+// const time_in_second = time_run*time_scale_from_ms/1000;
+const time_in_second = 1;
+
+this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" \"&omega;\"/s for "+duration_s+" second.");
+
+function some() { // p�riode en ms (100ms = 10 Hz)
+    publisher.publish({
+        header: {
+            stamp: Date.now(),
+            frame_id: "teleop_twist_joy"
+        }, 
+        twist: {
+            linear: {x: speed, y: 0.0, z: 0.0},
+            angular: {x: 0.0, y: 0.0, z: rot}
+        }
+    });
+}
+
+const timer = node.createTimer(hz_bigint, some);
+
+const timer2 = node.createTimer(duration_bigint, () =&gt; {    
+    timer.cancel();          // stoppe le timer ROS  
+    timer2.cancel();          // stoppe le timer ROS
+    //node.destroy();          // d�truit le node
+    //rclnodejs.shutdown();    // ferme le contexte ROS 2
+    next();
 });
-
-this.environment.services.console.log("one lights yellow end");
-
-next();</bpmn:script>
+this.environment.variables.nextTimerDuration = "PT1S";
+</bpmn:script>
     </bpmn:scriptTask>
     <bpmn:sequenceFlow id="Flow_089yk1l" sourceRef="Activity_0ls6ij7" targetRef="Activity_0uxzexx" />
   </bpmn:process>
