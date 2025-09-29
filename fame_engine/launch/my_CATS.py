@@ -16,7 +16,7 @@ def generate_launch_description():
 
     launch_args = [
         DeclareLaunchArgument('namespace', default_value='/a300_00041'),
-        DeclareLaunchArgument('bpmn', default_value='husky_a300_L_move_bis')
+        DeclareLaunchArgument('bpmn', default_value='husky_a300_rect_bis')
     ]
     # revise path to your nodejs start file
     start_js_file = os.path.join(

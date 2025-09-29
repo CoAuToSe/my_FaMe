@@ -18,27 +18,38 @@ var process_dict = {};
 
 //console.log(__dirname.split('/install')[0] + '/process')
 
+// function to load the bpmn file correctly
 function writeProcess(source_process) {
     var conversion = convert.xml2json(source_process, { compact: true, spaces: 4 });
     conversion = conversion.replace(/'/g, '"');
     var conversion_obj = JSON.parse(conversion);
+    // get inside the description of the process
     var processObj = conversion_obj['bpmn:definitions']['bpmn:process'];
+    // get any callActivity
     var caObjs = processObj['bpmn:callActivity'];
+    // if there is a call activity inside the BPMN
     if (caObjs) {
         if (caObjs.length) {
+            // for each item in call activity 
             for (let i = 0; i < caObjs.length; i++) {
+                // get the name of the called activity
                 var called_act = caObjs[i]._attributes.calledElement;
+                // found the bpmn at the process location
                 var ca_file = process_path + called_act + '.bpmn';
+                // try to open the file
                 var ca_source = fs.readFileSync(ca_file, 'utf8');
+                // add it to the process dict
                 process_dict[called_act] = [ca_source, false];
             }
         } else {
+            // same as in the for loop (badly coded)
             var called_act = caObjs._attributes.calledElement;
             var ca_file = process_path + called_act + '.bpmn';
             var ca_source = fs.readFileSync(ca_file, 'utf8');
             process_dict[called_act] = [ca_source, false];
         }
     }
+    // call the writeProcess recursively each new process that should be read
     Object.keys(process_dict).forEach(element => {
         if (!process_dict[element][1]) {
             process_dict[element][1] = true;
@@ -46,16 +57,17 @@ function writeProcess(source_process) {
         }
     });
 }
-
-function mergeCallActivity() {
+// try something with the subprocess (can't really tell as I don't have an example)
+function merge_callActivity() {
     // conversion from xml to object
     var xml = source;
     var conversion = convert.xml2json(xml, { compact: true, spaces: 4 });
     conversion = conversion.replace(/'/g, '"');
     var conversion_obj = JSON.parse(conversion);
     // console.log(conversion_obj);
+    // get inside the description of the process
     var processObj = conversion_obj['bpmn:definitions']['bpmn:process'];
-     var caObjs = processObj['bpmn:callActivity'];
+    var caObjs = processObj['bpmn:callActivity'];
     var spObjs = processObj['bpmn:subProcess'];
     if (spObjs) { //the param triggeredByEvent = true blocks the execution of the subprocess
         if (spObjs.length) {
@@ -84,10 +96,12 @@ function mergeCallActivity() {
     source = result;
 }
 
+// main execution
 rclnodejs.init().then(() => {
     //start ROS node
     const node = rclnodejs.createNode('engine_node');
 
+    // # Options for cmd 
     function getArg(flag, def = undefined) {
         const i = process.argv.indexOf(flag);
         return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
@@ -120,7 +134,7 @@ rclnodejs.init().then(() => {
     // var process_name = node.namespace().replace('/', '');
     // source = (fs.readFileSync(process_path + process_name + '.bpmn', 'utf8'));
     source = (fs.readFileSync(process_path + bpmn_name + '.bpmn', 'utf8'));
-    mergeCallActivity();
+    merge_callActivity();
     //fs.writeFileSync(process_path+'res.bpmn', source);
 
     var tstart = 0;
@@ -144,23 +158,26 @@ rclnodejs.init().then(() => {
 
     listener.on('activity.end', (activity) => {
         tfinish = activity.messageProperties.timestamp;
-        addVars(activity.environment.variables); // add activity variables to global ones
+        // add activity variables to global ones
+        addVars(activity.environment.variables);
         engine_env = engine.environment;
         //console.log('HERE:', engine_env.variables);
         // console.log(`activity.end <${activity.id}> was released`);
     });
 
-    /*    listener.on('activity.wait', (wait) => {
-            console.log(`wait <${wait.id}> was taken`);
-        });
-    
-        listener.on('activity.throw', (throwev) => {
-            console.log(`throw <${throwev.id}> was taken`);
-        });
-    
-        listener.on('activity.error', (errorev) => {
-            console.log(`error <${errorev.id}> was taken`);
-        });*/
+    /* 
+    listener.on('activity.wait', (wait) => {
+        console.log(`wait <${wait.id}> was taken`);
+    });
+
+    listener.on('activity.throw', (throwev) => {
+        console.log(`throw <${throwev.id}> was taken`);
+    });
+
+    listener.on('activity.error', (errorev) => {
+        console.log(`error <${errorev.id}> was taken`);
+    });
+    */
 
     function addVars(var_activity) {
         Object.keys(var_activity).forEach(element => {
@@ -172,11 +189,10 @@ rclnodejs.init().then(() => {
                 }
             }
         });
-
     }
 
     /**
-     * Management of signal throwing
+     * Management of signal throwing // sus, seems to not work, to be checked
      */
     engine.broker.subscribeTmp('event', 'activity.signal', (routingKey, msg) => { // routingKey = activity.signal
         let topic_name = msg.content.name
@@ -228,6 +244,8 @@ rclnodejs.init().then(() => {
         services: {
             get: bent('json'),
             set,
+
+            // to be able to print in the console
             console,
 
             // timers Node déjà exposés si besoin
@@ -250,6 +268,7 @@ rclnodejs.init().then(() => {
         console.log('Ended:', bpmn_name);
     });
 
+    // ????
     function set(activity, name, value) {
         activity.logger.debug('set', name, 'to', value);
     }
@@ -259,11 +278,13 @@ rclnodejs.init().then(() => {
      * @param {*} activity 
      */
     function camundaExtProperties(activity) {
+        // if there is no activity.behaviour.extensionElements: pass (why .behaviour ???)
         if (!activity.behaviour.extensionElements) return;
         let msg_type; // message type
         let ref_topic; // topic name
         let msg_payload; // massage payload
         for (const extn of activity.behaviour.extensionElements.values) {
+            // only do the following operation on the 'camunda:properties' block
             if (extn.$type === 'camunda:properties') {
                 ref_topic = activity.name;
                 let prop = extn.$children; // properties data

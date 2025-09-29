@@ -180,9 +180,15 @@ def import_message_type(type_str: str):
 
 
 FILTERED_TOPICS = [
-    "/a300_00041/set_pose",
-    "/a300_00041/platform/odom",
-    "/a300_00041/platform/odom/filtered"
+    # "/a300_00041/set_pose",
+    # "/a300_00041/platform/odom",
+    # "/a300_00041/platform/odom/filtered",
+    "/a300_00041/sensors/imu_0/data",
+    "/a300_00041/sensors/imu_0/data_raw",
+    "/a300_00041/sensors/imu_0/is_calibrated",
+    "/a300_00041/sensors/imu_0/mag",
+    "/a300_00041/sensors/imu_0/tf",
+    
 ]
 
 
