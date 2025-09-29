@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+
+  <title>CallActivity | FaMe</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+
+  <link rel="stylesheet" href="./style/style.css" />
+
+  <link rel="icon" type="image/png" href="./style/fame.png" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/node-rules/6.1.0/node-rules.min.js"></script>
+
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="bpmn-js-token-simulation demo" />
+  <meta property="og:title" content="Modeler | Call Activity" />
+  <meta property="og:url" content="https://bpmn-io.github.io/bpmn-js-token-simulation/modeler.html" />
+  <meta property="og:description"
+    content="Simulate your BPMN diagrams with bpmn-js-token-simulation. Understand and learn BPMN execution semantics one token at a time." />
+  <meta property="og:image" content="https://bpmn-io.github.io/bpmn-js-token-simulation/screenshot.png" />
+</head>
+
+<body>
+  <div id="nav-bar" class="topnav" style="background-color: rgb(0, 3, 158);">
+    <div class="bjs-container">
+      <img src="./style/fame_white.png" alt="FaMe" style="height:36px">
+      <div class="drop-message"> <i class="fa fa-upload" aria-hidden="true"></i> Drop a diagram to open or
+        <button class="upload" name="new-diagram" id="new-diagram">upload file </button>
+      <!--<div class="top-links"> Call Activity Editor </div> -->
+      </div>
+    </div>
+  </div>
+  <div class="canvas-parent">
+    <div class="canvas" id="canvas"> </div>
+
+    <div class="properties-panel open" id="properties-panel">
+      <div class="properties-panel-resizer" id="properties-panel-resizer" title="Toggle properties panel"
+        draggable="true">
+        <div class="properties-panel-resize-handle"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="links bottom-links">
+    <button class="link" id="download-button">Download Diagram</button>
+    <button class="link" id="svg-button">Download SVG</button>
+    <button class="link" id="call-act-button" style="border: 2px solid rgb(0, 3, 158);">Save Call Activity</button>
+  </div>
+  <script src="./dist/modeler.js"></script>
+</body>
+
+</html>

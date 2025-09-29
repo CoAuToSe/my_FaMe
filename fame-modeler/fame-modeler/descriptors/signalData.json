@@ -1,0 +1,48 @@
+{
+    "name": "ros",
+    "prefix": "ros",
+    "uri": "http://ros",
+    "xml": {
+      "tagAlias": "lowerCase"
+    },
+    "associations": [],
+    "types": [
+      {
+        "name": "message",
+        "superClass": [ "Element" ],
+        "properties": [
+          {
+            "name": "type",
+            "isAttr": true,
+            "type": "String"
+          }
+        ]
+      },
+      {
+        "name": "payload",
+        "superClass": [ "Element" ],
+        "properties": [
+          {
+            "name": "values",
+            "isMany": true,
+            "type": "parameter"
+          }
+        ]
+      },
+      {
+        "name": "parameter",
+        "properties": [
+          {
+            "name": "name",
+            "isAttr": true,
+            "type": "String"
+          },
+          {
+            "name": "value",
+            "isAttr": true,
+            "type": "String"
+          }
+        ]
+      }
+    ]
+}

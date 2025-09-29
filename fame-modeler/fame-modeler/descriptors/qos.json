@@ -1,0 +1,57 @@
+{
+  "name": "QoS",
+  "prefix": "qos",
+  "uri": "http://qos",
+  "xml": {
+    "tagAlias": "lowerCase"
+  },
+  "associations": [],
+  "types": [
+    {
+      "name": "policy",
+      "superClass": [ "Element" ],
+      "properties": [
+        {
+          "name": "history",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "depth",
+          "isAttr": true,
+          "type": "Number"
+        },
+        {
+          "name": "reliability",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "durability",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "deadline",
+          "isAttr": true,
+          "type": "Number"
+        },
+        {
+          "name": "lifespan",
+          "isAttr": true,
+          "type": "Number"
+        },
+        {
+          "name": "liveliness",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "leaseDuration",
+          "isAttr": true,
+          "type": "Number"
+        }
+      ]
+    }
+  ]
+}

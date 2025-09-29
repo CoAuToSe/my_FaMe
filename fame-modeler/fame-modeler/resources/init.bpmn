@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1tvdujm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js-token-simulation" exporterVersion="0.1.0">
+  <bpmn:signal id="Signal_3s4qp90" name="done" />
+  <bpmn:signal id="Signal_0lmf12i" name="target_found" />
+  <bpmn:process id="Process_1vrsp9u">
+    <bpmn:startEvent id="Event_18xtvcu" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1vrsp9u">
+      <bpmndi:BPMNShape id="Event_18xtvcu_di" bpmnElement="Event_18xtvcu">
+        <dc:Bounds x="362" y="312" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

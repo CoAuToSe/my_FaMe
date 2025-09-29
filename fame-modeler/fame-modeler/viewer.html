@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Viewer | FaMe</title>
+
+  <link rel="stylesheet" href="./style/style.css" />
+  <link rel="stylesheet" href="./style/simulation_style.css" />
+  <link rel="icon" type="image/png" href="./style/fame.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.3.0/src/RosLib.min.js"></script>
+
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Viewer | FaMe" />
+</head>
+<body>
+  <div id="nav-bar" class="topnav">
+    <div class="bjs-container">
+      <img src="./style/fame_white.png" alt="FaMe" style="height:36px">
+      <div class="drop-message"> Execution Viewer</div>
+  </div>
+  <div class="canvas-parent">
+    <div class="canvas" id="canvas">
+    </div>
+    <!--
+    <div class="links bottom-links">
+      <button class="link" id="download-button">Download Diagram</button>
+      <button class="link" id="svg-button">Download SVG</button>
+      <button class="link" id="ros-button">Connect with ROS</button>
+    </div>
+    -->
+    <div class="links bottom-links">
+      <button class="link" id="send-button"><i class="bi bi-send"></i> Resend Process</button>
+    </div>
+  </div>
+
+  <script src="viewer.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+type,class,format
+Float64,std_msgs,data:
+Float32,std_msgs,data:
+Int16,std_msgs,data:
+String,std_msgs,data:
+Bool,std_msgs,data:
+ColorRGBA,std_msgs,r:;g:;b:;a:
+UInt32,std_msgs,data:
+Time,std_msgs,data:
+Header,std_msgs,seq:;stamp:;frame_id:
+Vector3,geometry_msgs,x:;y:;z:
+Vector3Stamped,geometry_msgs,header:;vector:
+Point,geometry_msgs,x:;y:;z:
+Quaternion,geometry_msgs,x:;y:;z:;w:
+Pose,geometry_msgs,position:;orientation:
+Twist,geometry_msgs,linear:;angular:
+Wrench,geometry_msgs,force:;torque:
