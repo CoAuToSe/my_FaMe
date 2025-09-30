@@ -18,15 +18,32 @@ var process_dict = {};
 
 //console.log(__dirname.split('/install')[0] + '/process')
 
+function stripNS(obj) {
+    if (Array.isArray(obj)) {
+        return obj.map(stripNS);
+    } else if (typeof obj === 'object' && obj !== null) {
+        const newObj = {};
+        for (const [key, value] of Object.entries(obj)) {
+            const cleanKey = key.includes(':') ? key.split(':')[1] : key;
+            newObj[cleanKey] = stripNS(value);
+            //console.log("striping " + cleanKey);
+        }
+        return newObj;
+    }
+    return obj;
+}
+
 // function to load the bpmn file correctly
 function writeProcess(source_process) {
     var conversion = convert.xml2json(source_process, { compact: true, spaces: 4 });
     conversion = conversion.replace(/'/g, '"');
-    var conversion_obj = JSON.parse(conversion);
+    var conversion_obj_raw = JSON.parse(conversion);
+    var conversion_obj = stripNS(conversion_obj_raw);
+    console.log(conversion_obj)
     // get inside the description of the process
-    var processObj = conversion_obj['bpmn:definitions']['bpmn:process'];
+    var processObj = conversion_obj['definitions']['process'];
     // get any callActivity
-    var caObjs = processObj['bpmn:callActivity'];
+    var caObjs = processObj['callActivity'];
     // if there is a call activity inside the BPMN
     if (caObjs) {
         if (caObjs.length) {
@@ -63,12 +80,13 @@ function merge_callActivity() {
     var xml = source;
     var conversion = convert.xml2json(xml, { compact: true, spaces: 4 });
     conversion = conversion.replace(/'/g, '"');
-    var conversion_obj = JSON.parse(conversion);
+    var conversion_obj_raw = JSON.parse(conversion);
+    var conversion_obj = stripNS(conversion_obj_raw);
     // console.log(conversion_obj);
     // get inside the description of the process
-    var processObj = conversion_obj['bpmn:definitions']['bpmn:process'];
-    var caObjs = processObj['bpmn:callActivity'];
-    var spObjs = processObj['bpmn:subProcess'];
+    var processObj = conversion_obj['definitions']['process'];
+    var caObjs = processObj['callActivity'];
+    var spObjs = processObj['subProcess'];
     if (spObjs) { //the param triggeredByEvent = true blocks the execution of the subprocess
         if (spObjs.length) {
             for (let i = 0; i < caObjs.length; i++) {
@@ -77,7 +95,7 @@ function merge_callActivity() {
         } else {
             spObjs._attributes.triggeredByEvent = false;
         }
-        conversion_obj['bpmn:definitions']['bpmn:process']['bpmn:subProcess'] = spObjs;
+        conversion_obj['definitions']['process']['subProcess'] = spObjs;
         //console.log(spObjs);
     }
     writeProcess(source);
@@ -86,10 +104,11 @@ function merge_callActivity() {
     Object.keys(process_dict).forEach(element => {
         var conv = convert.xml2json(process_dict[element][0], { compact: true, spaces: 4 });
         conv = conv.replace(/'/g, '"');
-        var ca_c = JSON.parse(conv);
-        var process_push = ca_c['bpmn:definitions']['bpmn:process'];
+        var ca_c_raw = JSON.parse(conv);
+        var ca_c = stripNS(ca_c_raw);
+        var process_push = ca_c['definitions']['process'];
         arr_temp_process.push(process_push);
-        conversion_obj['bpmn:definitions']['bpmn:process'] = arr_temp_process;
+        conversion_obj['definitions']['process'] = arr_temp_process;
     });
 
     var result = convert.json2xml(conversion_obj, { compact: true, ignoreComment: true, spaces: 4 });
@@ -230,7 +249,8 @@ rclnodejs.init().then(() => {
             engine.execution.signal(msg.content.message, { ignoreSameDefinition: true });
             console.log(`Publishing message on ${topic_name}: ` + message_payload);
             const publisher = node.createPublisher(message_type, '/' + topic_name);
-            var message_obj = JSON.parse(message_payload); // conversion from string to obj
+            var message_obj_raw = JSON.parse(message_payload); // conversion from string to obj
+            var message_obj = stripNS(message_obj_raw);
             publisher.publish(message_obj);
         }
     }, { noAck: true });
@@ -284,8 +304,8 @@ rclnodejs.init().then(() => {
         let ref_topic; // topic name
         let msg_payload; // massage payload
         for (const extn of activity.behaviour.extensionElements.values) {
-            // only do the following operation on the 'camunda:properties' block
-            if (extn.$type === 'camunda:properties') {
+            // only do the following operation on the 'properties' block
+            if (extn.$type === 'properties') {
                 ref_topic = activity.name;
                 let prop = extn.$children; // properties data
                 msg_type = prop[0].value; // TO FIX -> non ha controlli
@@ -326,13 +346,14 @@ rclnodejs.init().then(() => {
         var xml = source;
         var conversion = convert.xml2json(xml, { compact: true, spaces: 4 });
         conversion = conversion.replace(/'/g, '"');
-        var conversion_obj = JSON.parse(conversion);
+        var conversion_obj_raw = JSON.parse(conversion);
+        var conversion_obj = stripNS(conversion_obj_raw);
         // data objects extraction
-        var processObjs = conversion_obj['bpmn:definitions']['bpmn:process'];
+        var processObjs = conversion_obj['definitions']['process'];
         var dataObjs = [];
         if (processObjs.length) {
             for (let i in processObjs) {
-                var dObj = processObjs[i]['bpmn:dataObjectReference'];
+                var dObj = processObjs[i]['dataObjectReference'];
                 if (dObj) {
                     if (dObj.length) {
                         for (let j in dObj) {
@@ -356,8 +377,8 @@ rclnodejs.init().then(() => {
             if (act_obj === obj_id) {
                 var variable = new Object();
                 // if there are values assigned to the variable
-                if (obj['bpmn:extensionElements']) {
-                    var properties = obj['bpmn:extensionElements']['camunda:properties']['camunda:property'];
+                if (obj['extensionElements']) {
+                    var properties = obj['extensionElements']['properties']['property'];
                     //console.log(properties);
                     if (properties.length > 1) {
                         for (let p_index in properties) {

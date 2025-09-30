@@ -8,82 +8,188 @@
       <bpmn:incoming>Flow_14zl0yu</bpmn:incoming>
       <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
       <bpmn:script>
-var node = this.environment.variables.ros_node;
+// Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+// Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+// Subscribes: nav_msgs/msg/Odometry on /odom
 
-//recup de topic odom à stocker la pose et le quaternion dans des variables
+const node = this.environment.variables.ros_node;
 
-const listener = node.createSubscription(
-    "nav_msgs/msg/Odometry",
-    "odom",
-    (msg) =&gt; {
-        //this.environment.services.console.log("I heard: "+msg);
-        this.environment.variables.odom = msg;
-        //this.environment.services.console.log(this.environment.variables.odom);
+// ==== User-tunable params ====
+const hz = 200;                      // control loop frequency [Hz]
+const duration_s = 1;                // hard stop safety duration
+const targetYawRad = 2*Math.PI;            // desired yaw (radians). Update at runtime if you like.
+const targetLinear = 0.5;            // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
 
-        //this.environment.services.console.log(this.environment.variables.odom.pose);
-        //this.environment.services.console.log(msg.pose);
-        this.environment.variables.odom_pose = msg.pose;
-        //this.environment.variables.odom_pose_position = msg.pose.position; // you can not do that, who knows why
-        //this.environment.variables.odom_pose_orientation = msg.pose.orientation; // you can not do that, who knows why
+// PID gains for yaw control (start modest; tune on your robot)
+const Kp = 1.8;
+const Ki = 0.1;
+const Kd = 0.0;
 
-        //this.environment.services.console.log(this.environment.variables.odom.twist);
-        //this.environment.services.console.log(msg.twist);
-        this.environment.variables.odom_twist = msg.twist;
-        //this.environment.variables.odom_twist_linear = msg.twist.linear; // you can not do that, who knows why
-        //this.environment.variables.odom_twist_angular = msg.twist.angular; // you can not do that, who knows why
+// Output/slew limits
+const maxAngVel = 0.7;               // [rad/s]
+const maxAngAcc = 1.0;               // [rad/s^2] change allowed
+const maxLinVel = 0.7;               // [m/s]
+const maxLinAcc = 0.7;               // [m/s^2]
 
-        this.environment.services.console.log(this.environment.variables);
-        //this.environment.services.console.log(this.environment.variables.odom_pose.pose.position.x);
+// Deadbands and finishing criteria
+const yawDeadband = 0.03;            // [rad] ~0.6°*3
+const finishYawError = 0.02;         // [rad] ~1.1°
+const finishHoldTime_s = 0.3;        // [s] hold within finish error before stopping
+
+// Watchdog
+const odomTimeout_s = 0.25;          // stop if odom older than this
+const frame_id = "base_link";        // header.frame_id for TwistStamped
+
+// ==== Helpers ====
+function nowStamp() {
+  const ms = Date.now();
+  return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+}
+function normAnglePi(a) {
+  // wrap to -pi, pi
+  const TWO_PI = Math.PI * 2;
+  a = ((a + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+  return a;
+}
+function quatYaw(q) {
+  // q: {x,y,z,w}
+  const { x, y, z, w } = q;
+  // yaw (Z) from quaternion
+  const siny_cosp = 2 * (w * z + x * y);
+  const cosy_cosp = 1 - 2 * (y * y + z * z);
+  return Math.atan2(siny_cosp, cosy_cosp);
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ==== State ====
+let lastOdom = null;      // {t_ms, x,y,theta, vx, wz}
+let lastCmd = { lin: 0, ang: 0 };
+let integ = 0;
+let prevErr = 0;
+let finishStartMs = null;
+
+// ==== Subscribers ====
+node.createSubscription("nav_msgs/msg/Odometry", "odom", (msg) =&gt; {
+  // pull out what we need (avoid keeping the entire message object)
+  try {
+    const p = msg.pose.pose.position;
+    const q = msg.pose.pose.orientation;
+    const t = msg.twist.twist;
+    const theta = quatYaw(q);
+    lastOdom = {
+      t_ms: Date.now(),
+      x: p.x, y: p.y, theta,
+      vx: t.linear.x,
+      wz: t.angular.z
+    };
+    // Optionally expose for debugging
+    this.environment.variables.odom_pose = msg.pose;
+    this.environment.variables.odom_twist = msg.twist;
+  } catch (e) {
+    this.environment.services.console.log("Odom parse error: " + e);
+  }
+});
+this.environment.services.console.log("Listening for nav_msgs/msg/Odometry on \"odom\".");
+
+// ==== Publisher ====
+const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+// ==== Timing ====
+const period_s = 1.0 / hz;
+const period_ns_bigint = BigInt(Math.round(1_000_000_000 / hz));
+const duration_ns_bigint = BigInt(Math.round(duration_s * 1_000_000_000));
+
+// ==== Controller loop ====
+function publishCmd(lin, ang) {
+  pub.publish({
+    header: { stamp: nowStamp(), frame_id },
+    twist: {
+      linear: { x: lin, y: 0.0, z: 0.0 },
+      angular: { x: 0.0, y: 0.0, z: ang }
     }
-);
-this.environment.services.console.log("Listening for "+"nav_msgs/msg/Odometry"+" on topic "+"odom"+".");
-
-
-
-const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
-
-const speed = 0.0; // scale of the speed of the command
-const rot = 0.5; // scale of the rotation of the command // 45� = 0.5 ; 90� = 0.7 ; 180� = 1
-const duration_s = 3;
-// const time_run = 31; // number of time this action will be performed // 45� = 31 ; 90� = 31 ; 180� = 31
-// const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
-// const factor = 4; // depends on the time needed to transmit the information // assure running
-
-
-const duration_bigint = BigInt(String(Math.round(duration_s*1_000_000_000)));
-const hz = 200;
-const hz_bigint = BigInt(String(Math.round(1_000_000_000/hz)));
-const period_ms = Math.round(1000 / hz);
-const ticks_total = Math.round(duration_s * hz);
-
-// const time_in_second = time_run*time_scale_from_ms/1000;
-const time_in_second = 1;
-
-this.environment.services.console.log("going at "+speed+" m/s and turning at "+rot+" \"&omega;\"/s for "+duration_s+" second.");
-
-function some() { // p�riode en ms (100ms = 10 Hz)
-    publisher.publish({
-        header: {
-            stamp: Date.now(),
-            frame_id: "teleop_twist_joy"
-        }, 
-        twist: {
-            linear: {x: speed, y: 0.0, z: 0.0},
-            angular: {x: 0.0, y: 0.0, z: rot}
-        }
-    });
+  });
+  lastCmd = { lin, ang };
 }
 
-const timer = node.createTimer(hz_bigint, some);
+function controlTick() {
+  const t_ms = Date.now();
 
-const timer2 = node.createTimer(duration_bigint, () =&gt; {    
-    timer.cancel();          // stoppe le timer ROS  
-    timer2.cancel();          // stoppe le timer ROS
-    //node.destroy();          // d�truit le node
-    //rclnodejs.shutdown();    // ferme le contexte ROS 2
-    next();
+  // Watchdog: stop if odom stale
+  if (!lastOdom || (t_ms - lastOdom.t_ms) / 1000.0 &gt; odomTimeout_s) {
+    integ = 0; prevErr = 0; finishStartMs = null;
+    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) {
+      publishCmd(0.0, 0.0);
+    }
+    return;
+  }
+
+  // Yaw control
+  const yaw = lastOdom.theta;
+  let err = normAnglePi(targetYawRad - yaw);
+
+  // Deadband to avoid chatter
+  if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+  // PID with basic anti-windup (only integrate when not saturated later)
+  integ += err * period_s;
+  const deriv = (err - prevErr) / period_s;
+  let u = Kp * err + Ki * integ + Kd * deriv;
+
+  // Saturate angular velocity
+  let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+
+  // Anti-windup: if saturated, back off integral a bit
+  if (u !== angCmd) {
+    // bleed integrator towards zero to prevent windup
+    integ *= 0.9;
+  }
+
+  // Slew-rate limit angular velocity
+  const maxDeltaAng = maxAngAcc * period_s;
+  const deltaAng = clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+  angCmd = lastCmd.ang + deltaAng;
+
+  // Linear command with slew &amp; limit
+  let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+  const maxDeltaLin = maxLinAcc * period_s;
+  const deltaLin = clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+  let linCmd = lastCmd.lin + deltaLin;
+
+  // Finish logic (only if you re doing a point-turn or precise heading)
+  const withinFinish = Math.abs(err) &lt;= finishYawError;
+  if (withinFinish) {
+    if (finishStartMs == null) finishStartMs = t_ms;
+    const held_s = (t_ms - finishStartMs) / 1000.0;
+    if (held_s &gt;= finishHoldTime_s &amp;&amp; Math.abs(linTarget) &lt; 1e-6) {
+      // stop and freeze controller
+      publishCmd(0.0, 0.0);
+      return;
+    }
+  } else {
+    finishStartMs = null;
+  }
+
+  publishCmd(linCmd, angCmd);
+}
+
+// ROS timer for control loop (BigInt nanoseconds)
+const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+
+// Safety timer to stop after duration_s (optional; remove if not desired)
+const stopTimer = node.createTimer(duration_ns_bigint, () =&gt; {
+  ctlTimer.cancel();
+  publishCmd(0.0, 0.0);
+  stopTimer.cancel();
+  if (typeof next === "function") next();
 });
+
+// For visibility in your env
+//this.environment.variables.nextTimerDuration = "PT"+duration_s+"S";
 this.environment.variables.nextTimerDuration = "PT1S";
+this.environment.services.console.log(
+  "Control loop "+hz+" Hz, target yaw "+targetYawRad.toFixed(3)+" rad, target v="+targetLinear+" m/s, safety "+duration_s+"s."
+);
+
             </bpmn:script>
     </bpmn:scriptTask>
     <bpmn:sequenceFlow id="Flow_14zl0yu" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
@@ -105,7 +211,7 @@ var node = this.environment.variables.ros_node;
 const publisher = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
 
 const speed = 0.0; // scale of the speed of the command
-const rot = -0.5; // scale of the rotation of the command // 45� = 0.5 ; 90� = 0.7 ; 180� = 1
+const rot = 0.0; // scale of the rotation of the command // 45� = 0.5 ; 90� = 0.7 ; 180� = 1
 const duration_s = 3;
 // const time_run = 31; // number of time this action will be performed // 45� = 31 ; 90� = 31 ; 180� = 31
 // const time_scale_from_ms = 100; // time between each ticking of the scan of this topic
