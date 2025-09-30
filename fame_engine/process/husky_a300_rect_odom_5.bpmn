@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="sid-38422fae-e03e-43a3-bef4-bd33b32041b2" targetNamespace="http://bpmn.io/bpmn" exporter="bpmn-js-token-simulation" exporterVersion="0.1.5">
-    <bpmn:process id="Process_1" isExecutable="true">
-        <bpmn:startEvent id="StartEvent_1y45yut" name="start">
-            <bpmn:outgoing>Flow_0sch4l6</bpmn:outgoing>
-        </bpmn:startEvent>
-        <bpmn:scriptTask id="Activity_0q0spcq" name="go front1_20sec" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_0sch4l6</bpmn:incoming>
-            <bpmn:outgoing>Flow_1hs9b03</bpmn:outgoing>
-            <bpmn:script>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="sid-38422fae-e03e-43a3-bef4-bd33b32041b2" targetNamespace="http://bpmn.io/bpmn" exporter="bpmn-js-token-simulation" exporterVersion="0.1.5">
+    <process id="Process_1" isExecutable="true">
+        <startEvent id="StartEvent_1y45yut" name="start">
+            <outgoing>Flow_0sch4l6</outgoing>
+        </startEvent>
+        <scriptTask id="Activity_0q0spcq" name="go front1_20sec" scriptFormat="JavaScript">
+            <incoming>Flow_0sch4l6</incoming>
+            <outgoing>Flow_1hs9b03</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -191,13 +191,13 @@
     this.environment.services.console.log(
         "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
     );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:scriptTask id="Activity_1wg18x7" name="turn right1" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_1hs9b03</bpmn:incoming>
-            <bpmn:outgoing>Flow_0bt1i2p</bpmn:outgoing>
-            <bpmn:outgoing>Flow_15ix0rp</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <scriptTask id="Activity_1wg18x7" name="turn right1" scriptFormat="JavaScript">
+            <incoming>Flow_1hs9b03</incoming>
+            <outgoing>Flow_0bt1i2p</outgoing>
+            <outgoing>Flow_15ix0rp</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -381,14 +381,14 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:sequenceFlow id="Flow_0bt1i2p" sourceRef="Activity_1wg18x7" />
-        <bpmn:scriptTask id="Activity_1yall46" name="turn_right2" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_0rrv776</bpmn:incoming>
-            <bpmn:incoming>Flow_0a0ncxm</bpmn:incoming>
-            <bpmn:outgoing>Flow_14v3ir8</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <sequenceFlow id="Flow_0bt1i2p" sourceRef="Activity_1wg18x7" />
+        <scriptTask id="Activity_1yall46" name="turn_right2" scriptFormat="JavaScript">
+            <incoming>Flow_0rrv776</incoming>
+            <incoming>Flow_0a0ncxm</incoming>
+            <outgoing>Flow_14v3ir8</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -572,13 +572,13 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:sequenceFlow id="Flow_0rrv776" targetRef="Activity_1yall46" />
-        <bpmn:scriptTask id="Activity_1izx18n" name="go front3_20sec" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_14v3ir8</bpmn:incoming>
-            <bpmn:outgoing>Flow_1hu0hbu</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <sequenceFlow id="Flow_0rrv776" targetRef="Activity_1yall46" />
+        <scriptTask id="Activity_1izx18n" name="go front3_20sec" scriptFormat="JavaScript">
+            <incoming>Flow_14v3ir8</incoming>
+            <outgoing>Flow_1hu0hbu</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -762,12 +762,12 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:scriptTask id="Activity_1l56vra" name="turn_rigth3" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_1hu0hbu</bpmn:incoming>
-            <bpmn:outgoing>Flow_07rxyxy</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <scriptTask id="Activity_1l56vra" name="turn_rigth3" scriptFormat="JavaScript">
+            <incoming>Flow_1hu0hbu</incoming>
+            <outgoing>Flow_07rxyxy</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -951,12 +951,12 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:scriptTask id="Activity_11y5m4e" name="go front4_2sec" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_07rxyxy</bpmn:incoming>
-            <bpmn:outgoing>Flow_0x2fpg1</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <scriptTask id="Activity_11y5m4e" name="go front4_2sec" scriptFormat="JavaScript">
+            <incoming>Flow_07rxyxy</incoming>
+            <outgoing>Flow_0x2fpg1</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -1140,12 +1140,12 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:scriptTask id="Activity_06lxzkv" name="turn_right4" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_0x2fpg1</bpmn:incoming>
-            <bpmn:outgoing>Flow_1eqq3ib</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <scriptTask id="Activity_06lxzkv" name="turn_right4" scriptFormat="JavaScript">
+            <incoming>Flow_0x2fpg1</incoming>
+            <outgoing>Flow_1eqq3ib</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -1329,15 +1329,15 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:endEvent id="Event_14bt87m">
-            <bpmn:incoming>Flow_1eqq3ib</bpmn:incoming>
-        </bpmn:endEvent>
-        <bpmn:scriptTask id="Activity_06dkqn5" name="go front2_2sec" scriptFormat="JavaScript">
-            <bpmn:incoming>Flow_15ix0rp</bpmn:incoming>
-            <bpmn:outgoing>Flow_0a0ncxm</bpmn:outgoing>
-            <bpmn:script>
+            </script>
+        </scriptTask>
+        <endEvent id="Event_14bt87m">
+            <incoming>Flow_1eqq3ib</incoming>
+        </endEvent>
+        <scriptTask id="Activity_06dkqn5" name="go front2_2sec" scriptFormat="JavaScript">
+            <incoming>Flow_15ix0rp</incoming>
+            <outgoing>Flow_0a0ncxm</outgoing>
+            <script>
             // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
             // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
             // Subscribes: nav_msgs/msg/Odometry on /odom
@@ -1521,18 +1521,18 @@
             this.environment.services.console.log(
                 "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
             );
-            </bpmn:script>
-        </bpmn:scriptTask>
-        <bpmn:sequenceFlow id="Flow_0sch4l6" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
-        <bpmn:sequenceFlow id="Flow_1hs9b03" sourceRef="Activity_0q0spcq" targetRef="Activity_1wg18x7" />
-        <bpmn:sequenceFlow id="Flow_15ix0rp" sourceRef="Activity_1wg18x7" targetRef="Activity_06dkqn5" />
-        <bpmn:sequenceFlow id="Flow_0a0ncxm" sourceRef="Activity_06dkqn5" targetRef="Activity_1yall46" />
-        <bpmn:sequenceFlow id="Flow_14v3ir8" sourceRef="Activity_1yall46" targetRef="Activity_1izx18n" />
-        <bpmn:sequenceFlow id="Flow_1hu0hbu" sourceRef="Activity_1izx18n" targetRef="Activity_1l56vra" />
-        <bpmn:sequenceFlow id="Flow_07rxyxy" sourceRef="Activity_1l56vra" targetRef="Activity_11y5m4e" />
-        <bpmn:sequenceFlow id="Flow_0x2fpg1" sourceRef="Activity_11y5m4e" targetRef="Activity_06lxzkv" />
-        <bpmn:sequenceFlow id="Flow_1eqq3ib" sourceRef="Activity_06lxzkv" targetRef="Event_14bt87m" />
-    </bpmn:process>
+            </script>
+        </scriptTask>
+        <sequenceFlow id="Flow_0sch4l6" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
+        <sequenceFlow id="Flow_1hs9b03" sourceRef="Activity_0q0spcq" targetRef="Activity_1wg18x7" />
+        <sequenceFlow id="Flow_15ix0rp" sourceRef="Activity_1wg18x7" targetRef="Activity_06dkqn5" />
+        <sequenceFlow id="Flow_0a0ncxm" sourceRef="Activity_06dkqn5" targetRef="Activity_1yall46" />
+        <sequenceFlow id="Flow_14v3ir8" sourceRef="Activity_1yall46" targetRef="Activity_1izx18n" />
+        <sequenceFlow id="Flow_1hu0hbu" sourceRef="Activity_1izx18n" targetRef="Activity_1l56vra" />
+        <sequenceFlow id="Flow_07rxyxy" sourceRef="Activity_1l56vra" targetRef="Activity_11y5m4e" />
+        <sequenceFlow id="Flow_0x2fpg1" sourceRef="Activity_11y5m4e" targetRef="Activity_06lxzkv" />
+        <sequenceFlow id="Flow_1eqq3ib" sourceRef="Activity_06lxzkv" targetRef="Event_14bt87m" />
+    </process>
     <bpmndi:BPMNDiagram id="BpmnDiagram_1">
         <bpmndi:BPMNPlane id="BpmnPlane_1" bpmnElement="Process_1">
             <bpmndi:BPMNShape id="StartEvent_1y45yut_di" bpmnElement="StartEvent_1y45yut">
@@ -1614,4 +1614,4 @@
             </bpmndi:BPMNEdge>
         </bpmndi:BPMNPlane>
     </bpmndi:BPMNDiagram>
-</bpmn:definitions>
+</definitions>
