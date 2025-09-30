@@ -39,7 +39,7 @@ function writeProcess(source_process) {
     conversion = conversion.replace(/'/g, '"');
     var conversion_obj_raw = JSON.parse(conversion);
     var conversion_obj = stripNS(conversion_obj_raw);
-    console.log(conversion_obj)
+    //console.log(conversion_obj)
     // get inside the description of the process
     var processObj = conversion_obj['definitions']['process'];
     // get any callActivity
