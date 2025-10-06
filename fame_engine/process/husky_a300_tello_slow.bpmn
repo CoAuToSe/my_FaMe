@@ -1,0 +1,2485 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="sid-38422fae-e03e-43a3-bef4-bd33b32041b2" targetNamespace="http://bpmn.io/bpmn" exporter="bpmn-js-token-simulation" exporterVersion="0.1.5">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="StartEvent_1y45yut" name="start">
+      <outgoing>Flow_0sch4l6</outgoing>
+    </startEvent>
+    <scriptTask id="Activity_0q0spcq" name="go front1_20sec" scriptFormat="JavaScript">
+      <incoming>Flow_0sch4l6</incoming>
+      <outgoing>Flow_1hs9b03</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+            //this.environment.services.console.log(this);
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 20/10;                              // hard stop safety duration
+            const targetYawRad = Math.PI + 2*Math.PI % (2*Math.PI);    // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 1.5;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+        const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+        const stopTimer = node.createTimer(duration_ns_bigint, function() {
+            ctlTimer.cancel();
+            publishCmd(0,0);
+            stopTimer.cancel();
+            if (typeof next === "function") next();
+    });
+
+    // For visibility
+    this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+    this.environment.services.console.log(
+        "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+    );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_1wg18x7" name="turn right1" scriptFormat="JavaScript">
+      <incoming>Flow_1hs9b03</incoming>
+      <!-- <outgoing>Flow_0bt1i2p</outgoing> -->
+      <outgoing>Flow_15ix0rp</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 5;                                // hard stop safety duration
+            const targetYawRad = Math.PI + (3/2)*Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 0.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <!-- <sequenceFlow id="Flow_0bt1i2p" sourceRef="Activity_1wg18x7" />
+    <sequenceFlow id="Flow_0rrv776" /> -->
+    <scriptTask id="Activity_06dkqn5" name="go front2_2sec" scriptFormat="JavaScript">
+      <incoming>Flow_15ix0rp</incoming>
+      <outgoing>Flow_0w0jsg2</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 2/10;                                // hard stop safety duration
+            const targetYawRad = Math.PI + (3/2)*Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 1.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <sequenceFlow id="Flow_0sch4l6" sourceRef="StartEvent_1y45yut" targetRef="Activity_0q0spcq" />
+    <sequenceFlow id="Flow_1hs9b03" sourceRef="Activity_0q0spcq" targetRef="Activity_1wg18x7" />
+    <sequenceFlow id="Flow_15ix0rp" sourceRef="Activity_1wg18x7" targetRef="Activity_06dkqn5" />
+    <scriptTask id="Activity_1r86qxv" name="tello fly" scriptFormat="JavaScript">
+      <incoming>Flow_0w0jsg2</incoming>
+      <outgoing>Flow_1dvcpzt</outgoing>
+      <script>
+        var node = this.environment.variables.ros_node;
+
+        const client = node.createClient("tello_msgs/srv/TelloAction", "/tello_7/tello_action");
+        const request = new Object();
+        request["cmd"] = "takeoff";
+
+        client.waitForService(1000).then((result) =&gt; {
+            if (!result) {
+                this.environment.services.console.log("Error: service not available");
+                return;
+            }
+            this.environment.services.console.log("Sending: ", request);
+            client.sendRequest(request, (response) =&gt; {
+                this.environment.services.console.log("Result: ", response);
+            });
+        });
+        this.environment.services.console.log("taking off");
+        next();
+      </script>
+    </scriptTask>
+    <scriptTask id="Activity_165fgyl" name="go back1_2sec" scriptFormat="JavaScript">
+      <incoming>Flow_1dvcpzt</incoming>
+      <outgoing>Flow_0wozddq</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 2/10;                                // hard stop safety duration
+            const targetYawRad = Math.PI + (3/2)*Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = -1.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_1o7ifab" name="turn left1" scriptFormat="JavaScript">
+      <incoming>Flow_0wozddq</incoming>
+      <outgoing>Flow_1s4h9jp</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 5;                                // hard stop safety duration
+            const targetYawRad = Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 0.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_1lrrotn" name="go back2_20sec" scriptFormat="JavaScript">
+      <incoming>Flow_1s4h9jp</incoming>
+      <outgoing>Flow_0yefpzh</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+            //this.environment.services.console.log(this);
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 20/10;                              // hard stop safety duration
+            const targetYawRad = Math.PI + 2*Math.PI % (2*Math.PI);    // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = -1.5;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+        const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+        const stopTimer = node.createTimer(duration_ns_bigint, function() {
+            ctlTimer.cancel();
+            publishCmd(0,0);
+            stopTimer.cancel();
+            if (typeof next === "function") next();
+    });
+
+    // For visibility
+    this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+    this.environment.services.console.log(
+        "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+    );
+            </script>
+    </scriptTask>
+    <sequenceFlow id="Flow_0w0jsg2" sourceRef="Activity_06dkqn5" targetRef="Activity_1r86qxv" />
+    <sequenceFlow id="Flow_1dvcpzt" sourceRef="Activity_1r86qxv" targetRef="Activity_165fgyl" />
+    <sequenceFlow id="Flow_0wozddq" sourceRef="Activity_165fgyl" targetRef="Activity_1o7ifab" />
+    <sequenceFlow id="Flow_1s4h9jp" sourceRef="Activity_1o7ifab" targetRef="Activity_1lrrotn" />
+    <scriptTask id="Activity_0w3ul07" name="go front3_20sec" scriptFormat="JavaScript">
+      <incoming>Flow_0yefpzh</incoming>
+      <outgoing>Flow_0hqd0j0</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+            //this.environment.services.console.log(this);
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 20/10;                              // hard stop safety duration
+            const targetYawRad = Math.PI + 2*Math.PI % (2*Math.PI);    // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 1.5;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+        const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+        const stopTimer = node.createTimer(duration_ns_bigint, function() {
+            ctlTimer.cancel();
+            publishCmd(0,0);
+            stopTimer.cancel();
+            if (typeof next === "function") next();
+    });
+
+    // For visibility
+    this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+    this.environment.services.console.log(
+        "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+    );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_14kl9dh" name="turn right2" scriptFormat="JavaScript">
+      <incoming>Flow_0hqd0j0</incoming>
+      <outgoing>Flow_15926n0</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 5;                                // hard stop safety duration
+            const targetYawRad = Math.PI + (3/2)*Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 0.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_0a10d6k" name="go front4_2sec" scriptFormat="JavaScript">
+      <incoming>Flow_15926n0</incoming>
+      <outgoing>Flow_1ahjhb0</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 2/10;                                // hard stop safety duration
+            const targetYawRad = Math.PI + (3/2)*Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 1.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <sequenceFlow id="Flow_0hqd0j0" sourceRef="Activity_0w3ul07" targetRef="Activity_14kl9dh" />
+    <sequenceFlow id="Flow_15926n0" sourceRef="Activity_14kl9dh" targetRef="Activity_0a10d6k" />
+    <sequenceFlow id="Flow_0yefpzh" sourceRef="Activity_1lrrotn" targetRef="Activity_0w3ul07" />
+    <scriptTask id="Activity_01au7jh" name="tello land" scriptFormat="JavaScript">
+      <incoming>Flow_1ahjhb0</incoming>
+      <outgoing>Flow_10m7gz4</outgoing>
+      <script>
+        var node = this.environment.variables.ros_node;
+
+
+        const client = node.createClient("tello_msgs/srv/TelloAction", "/tello_7/tello_action");
+        const request = new Object();
+        request["cmd"] = "land";
+
+        client.waitForService(1000).then((result) =&gt; {
+            if (!result) {
+                this.environment.services.console.log("Error: service not available");
+                return;
+            }
+            this.environment.services.console.log("Sending: ", request);
+            client.sendRequest(request, (response) =&gt; {
+                this.environment.services.console.log("Result: ", response);
+            });
+        });
+        this.environment.services.console.log("landing");
+
+        next();
+      </script>
+    </scriptTask>
+    <scriptTask id="Activity_03rqxv7" name="go back3_2sec" scriptFormat="JavaScript">
+      <incoming>Flow_10m7gz4</incoming>
+      <outgoing>Flow_1fijlt7</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 2/10;                                // hard stop safety duration
+            const targetYawRad = Math.PI + (3/2)*Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = -1.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_17hm27b" name="turn left2" scriptFormat="JavaScript">
+      <incoming>Flow_1fijlt7</incoming>
+      <outgoing>Flow_0jppmv8</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 5;                                // hard stop safety duration
+            const targetYawRad = Math.PI % (2*Math.PI);                        // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = 0.0;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+            const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+            const stopTimer = node.createTimer(duration_ns_bigint, function() {
+                ctlTimer.cancel();
+                publishCmd(0,0);
+                stopTimer.cancel();
+                if (typeof next === "function") next();
+            });
+
+            // For visibility
+            this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+            this.environment.services.console.log(
+                "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+            );
+            </script>
+    </scriptTask>
+    <scriptTask id="Activity_035oa4j" name="go back4_20sec" scriptFormat="JavaScript">
+      <incoming>Flow_0jppmv8</incoming>
+      <outgoing>Flow_0v0v51n</outgoing>
+      <script>
+            // Assumes: rclnodejs Node is available as this.environment.variables.ros_node
+            // Publishes: geometry_msgs/msg/TwistStamped on /cmd_vel
+            // Subscribes: nav_msgs/msg/Odometry on /odom
+
+            const node = this.environment.variables.ros_node;
+            //this.environment.services.console.log(this);
+            // ====================== USER TUNABLES ======================
+            const hz = 200;                                            // control loop frequency [Hz]
+            const duration_s = 20/10;                              // hard stop safety duration
+            const targetYawRad = Math.PI + 2*Math.PI % (2*Math.PI);    // desired yaw (radians). Update at runtime if you like.
+            const targetLinear = -1.5;                        // desired forward speed [m/s] (set &gt;0 to drive while holding heading)
+
+            // PID gains for yaw control (start modest; tune on your robot)
+            const Kp = 1.8;
+            const Ki = 0.1;
+            const Kd = 0.0;
+
+            // Output/slew limits
+            const maxAngVel = 0.7;                             // [rad/s]
+            const maxAngAcc = 1.0;                             // [rad/s^2] change allowed
+            const maxLinVel = Math.abs(targetLinear);                             // [m/s]
+            const maxLinAcc = 0.7;                             // [m/s^2]
+
+            const yawDeadband = 0.01;
+            const finishYawError = 0.02;
+            const finishHoldTime_s = 0.3;
+
+            const odomTimeout_s = 0.25;
+            const imuTimeout_s    = 0.25;
+
+            const fusionHz = hz;
+            const tau_s = 5.0;
+            const alpha = Math.exp(-1.0 / (tau_s * fusionHz));
+            const useCovarianceWeight = true;
+            const imuMaxVarForFullTrust = 0.05;
+
+            const imuDeclination_rad = 0.0;
+
+            // Watchdog (IMU only)
+            //const imuTimeout_s    = 0.25;                         // stop if IMU older than this
+
+            // If your IMU yaw needs a fixed offset (e.g., declination), set here:
+            const imuYawOffset_rad = 0.0;
+
+            const frame_id = "base_link";
+            // ===========================================================
+            
+            // ===== Helpers =====
+            function nowStamp() {
+                const ms = Date.now();
+                return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
+            }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function wrapPi(a) { const t = ((a + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI); return t - Math.PI; }
+            function norm(q){ const n = Math.hypot(q.x, q.y, q.z, q.w) || 1.0; return {x:q.x/n, y:q.y/n, z:q.z/n, w:q.w/n}; }
+            function quatToEulerRPY(qraw){
+                const q = norm(qraw); const x=q.x,y=q.y,z=q.z,w=q.w;
+                const sinr_cosp = 2*(w*x + y*z), cosr_cosp = 1 - 2*(x*x + y*y);
+                const roll = Math.atan2(sinr_cosp, cosr_cosp);
+                const sinp = 2*(w*y - z*x);
+                const pitch = (Math.abs(sinp) &gt;= 1) ? Math.sign(sinp)*(Math.PI/2) : Math.asin(sinp);
+                const siny_cosp = 2*(w*z + x*y), cosy_cosp = 1 - 2*(y*y + z*z);
+                const yaw = Math.atan2(siny_cosp, cosy_cosp);
+                return {roll: roll, pitch: pitch, yaw: yaw};
+            }
+
+            // ===== State (IMU only) =====
+            let lastIMU    = null;         // {t_ms, yaw, var}
+            let integ = 0, prevErr = 0;
+            let lastCmd = { lin: 0, ang: 0 };
+            let finishStartMs = null;
+
+            // ===== Subscriptions (your IMU topic) =====
+            const imuTopics = [
+                {type: "sensor_msgs/msg/Imu", name: "/a300_00041/sensors/imu_0/data"}
+            ];
+
+            function onImu(msg, topicName){
+                const cov0 = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt; 0) ? msg.orientation_covariance[0] : 0;
+                if (cov0 === -1) {
+                    this.environment.services.console.warn("[IMU] " + topicName + ": invalid orientation (cov[0] = -1).");
+                    return;
+                }
+                const rpy = quatToEulerRPY(msg.orientation);
+                let yaw = wrapPi(rpy.yaw + imuYawOffset_rad);
+                const yawVar = (msg.orientation_covariance &amp;&amp; msg.orientation_covariance.length &gt;= 9) ? msg.orientation_covariance[8] : cov0;
+
+                lastIMU = { t_ms: Date.now(), yaw: yaw, var: (typeof yawVar === "number" ? Math.max(0, yawVar) : 0.0) };
+
+                this.environment.variables.imu = msg;
+                this.environment.variables.imu_quat = msg.orientation;
+                this.environment.variables.imu_orientation_cov = msg.orientation_covariance;
+                this.environment.variables.roll_pitch_yaw = rpy;
+                this.environment.variables.yaw_rad = yaw;
+                this.environment.variables.yaw_deg = yaw * 180/Math.PI;
+                this.environment.variables.imu_source_topic = topicName;
+            }
+
+            const imuSubs = imuTopics.map(function(spec){
+                return node.createSubscription(spec.type, spec.name, function(msg){ onImu.call(this,msg,spec.name); }.bind(this));
+            }.bind(this));
+
+            this.environment.services.console.log(
+                "Listening for sensor_msgs/msg/Imu on topics: " + imuTopics.map(function(t){ return t.name; }).join(", ") + "."
+            );
+
+            // ===== Publisher =====
+            const pub = node.createPublisher("geometry_msgs/msg/TwistStamped", "cmd_vel");
+
+            // ===== Timing =====
+            const period_s = 1.0 / hz;
+            const period_ns_bigint = BigInt(Math.round(1000000000 / hz));
+            const duration_ns_bigint = BigInt(Math.round(duration_s * 1000000000));
+
+            // ===== Control using IMU yaw only =====
+            function imuAvailable() { return lastIMU &amp;&amp; (Date.now() - lastIMU.t_ms) &lt;= imuTimeout_s*1000; }
+
+            function publishCmd(lin, ang) {
+                pub.publish({
+                    header: { stamp: nowStamp(), frame_id: frame_id },
+                    twist: { linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z: ang} }
+                });
+                lastCmd = { lin: lin, ang: ang };
+            }
+
+            function controlTick() {
+                const t_ms = Date.now();
+
+                if (!imuAvailable()) {
+                    integ = 0; prevErr = 0; finishStartMs = null;
+                    if (Math.abs(lastCmd.lin) &gt; 1e-6 || Math.abs(lastCmd.ang) &gt; 1e-6) publishCmd(0,0);
+                    return;
+                }
+
+                const yaw = lastIMU.yaw;
+
+                let err = wrapPi(targetYawRad - yaw);
+                if (Math.abs(err) &lt; yawDeadband) err = 0;
+
+                integ += err * period_s;
+                const deriv = (err - prevErr) / period_s;
+                let u = Kp*err + Ki*integ + Kd*deriv;
+
+                let angCmd = clamp(u, -maxAngVel, +maxAngVel);
+                if (u !== angCmd) integ *= 0.9;
+
+                const maxDeltaAng = maxAngAcc * period_s;
+                angCmd = lastCmd.ang + clamp(angCmd - lastCmd.ang, -maxDeltaAng, +maxDeltaAng);
+
+                let linTarget = clamp(targetLinear, -maxLinVel, +maxLinVel);
+                const maxDeltaLin = maxLinAcc * period_s;
+                let linCmd = lastCmd.lin + clamp(linTarget - lastCmd.lin, -maxDeltaLin, +maxDeltaLin);
+
+                const withinFinish = Math.abs(err) &lt;= finishYawError &amp;&amp; Math.abs(linTarget) &lt; 1e-6;
+                if (withinFinish) {
+                    if (finishStartMs == null) finishStartMs = t_ms;
+                    if ((t_ms - finishStartMs)/1000.0 &gt;= finishHoldTime_s) {
+                        publishCmd(0,0);
+                        prevErr = err;
+                        return;
+                    }
+                } else {
+                    finishStartMs = null;
+                }
+
+                publishCmd(linCmd, angCmd);
+                prevErr = err;
+            }
+
+            // ===== Timers =====
+        const ctlTimer = node.createTimer(period_ns_bigint, controlTick);
+        const stopTimer = node.createTimer(duration_ns_bigint, function() {
+            ctlTimer.cancel();
+            publishCmd(0,0);
+            stopTimer.cancel();
+            if (typeof next === "function") next();
+    });
+
+    // For visibility
+    this.environment.variables.nextTimerDuration = "PT" + duration_s + "S";
+    this.environment.services.console.log(
+        "IMU-only heading control @" + hz + "Hz. targetYaw=" + targetYawRad.toFixed(3) + " rad, v=" + targetLinear + " m/s for " + duration_s + " second(s)."
+    );
+            </script>
+    </scriptTask>
+    <sequenceFlow id="Flow_10m7gz4" sourceRef="Activity_01au7jh" targetRef="Activity_03rqxv7" />
+    <sequenceFlow id="Flow_1fijlt7" sourceRef="Activity_03rqxv7" targetRef="Activity_17hm27b" />
+    <sequenceFlow id="Flow_0jppmv8" sourceRef="Activity_17hm27b" targetRef="Activity_035oa4j" />
+    <sequenceFlow id="Flow_1ahjhb0" sourceRef="Activity_0a10d6k" targetRef="Activity_01au7jh" />
+    <endEvent id="Event_1qs7mpg" name="end">
+      <incoming>Flow_0v0v51n</incoming>
+    </endEvent>
+    <sequenceFlow id="Flow_0v0v51n" sourceRef="Activity_035oa4j" targetRef="Event_1qs7mpg" />
+  </process>
+  <bpmndi:BPMNDiagram id="BpmnDiagram_1">
+    <bpmndi:BPMNPlane id="BpmnPlane_1" bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="StartEvent_1y45yut_di" bpmnElement="StartEvent_1y45yut">
+        <omgdc:Bounds x="152" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds x="134" y="145" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0q0spcq_di" bpmnElement="Activity_0q0spcq">
+        <omgdc:Bounds x="240" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_01al6l1" bpmnElement="Activity_1wg18x7">
+        <omgdc:Bounds x="390" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1d32bws" bpmnElement="Activity_06dkqn5">
+        <omgdc:Bounds x="520" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_041a660" bpmnElement="Activity_1r86qxv">
+        <omgdc:Bounds x="240" y="240" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1dcbe1s" bpmnElement="Activity_165fgyl">
+        <omgdc:Bounds x="240" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1q4niz1" bpmnElement="Activity_1o7ifab">
+        <omgdc:Bounds x="380" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_116mj4g" bpmnElement="Activity_1lrrotn">
+        <omgdc:Bounds x="530" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_0orcdvu" bpmnElement="Activity_0w3ul07">
+        <omgdc:Bounds x="240" y="580" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_13lberd" bpmnElement="Activity_14kl9dh">
+        <omgdc:Bounds x="390" y="580" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_16w6qns" bpmnElement="Activity_0a10d6k">
+        <omgdc:Bounds x="520" y="580" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1a91mz1" bpmnElement="Activity_01au7jh">
+        <omgdc:Bounds x="240" y="770" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1yl72od" bpmnElement="Activity_03rqxv7">
+        <omgdc:Bounds x="240" y="910" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_050r5cd" bpmnElement="Activity_17hm27b">
+        <omgdc:Bounds x="380" y="910" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1ntt1jo" bpmnElement="Activity_035oa4j">
+        <omgdc:Bounds x="530" y="910" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1qs7mpg_di" bpmnElement="Event_1qs7mpg">
+        <omgdc:Bounds x="682" y="932" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds x="691" y="975" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0sch4l6_di" bpmnElement="Flow_0sch4l6">
+        <omgdi:waypoint x="188" y="120" />
+        <omgdi:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hs9b03_di" bpmnElement="Flow_1hs9b03">
+        <omgdi:waypoint x="340" y="120" />
+        <omgdi:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15ix0rp_di" bpmnElement="Flow_15ix0rp">
+        <omgdi:waypoint x="490" y="120" />
+        <omgdi:waypoint x="520" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0w0jsg2_di" bpmnElement="Flow_0w0jsg2">
+        <omgdi:waypoint x="570" y="160" />
+        <omgdi:waypoint x="570" y="200" />
+        <omgdi:waypoint x="290" y="200" />
+        <omgdi:waypoint x="290" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1dvcpzt_di" bpmnElement="Flow_1dvcpzt">
+        <omgdi:waypoint x="290" y="320" />
+        <omgdi:waypoint x="290" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0wozddq_di" bpmnElement="Flow_0wozddq">
+        <omgdi:waypoint x="340" y="440" />
+        <omgdi:waypoint x="380" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1s4h9jp_di" bpmnElement="Flow_1s4h9jp">
+        <omgdi:waypoint x="480" y="440" />
+        <omgdi:waypoint x="530" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_1hvq2wt" bpmnElement="Flow_0hqd0j0">
+        <omgdi:waypoint x="340" y="620" />
+        <omgdi:waypoint x="390" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_1aj69bz" bpmnElement="Flow_15926n0">
+        <omgdi:waypoint x="490" y="620" />
+        <omgdi:waypoint x="520" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0yefpzh_di" bpmnElement="Flow_0yefpzh">
+        <omgdi:waypoint x="580" y="480" />
+        <omgdi:waypoint x="580" y="530" />
+        <omgdi:waypoint x="280" y="530" />
+        <omgdi:waypoint x="280" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_19018q4" bpmnElement="Flow_10m7gz4">
+        <omgdi:waypoint x="290" y="850" />
+        <omgdi:waypoint x="290" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_00nqzn6" bpmnElement="Flow_1fijlt7">
+        <omgdi:waypoint x="340" y="950" />
+        <omgdi:waypoint x="380" y="950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_13nyr5x" bpmnElement="Flow_0jppmv8">
+        <omgdi:waypoint x="480" y="950" />
+        <omgdi:waypoint x="530" y="950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ahjhb0_di" bpmnElement="Flow_1ahjhb0">
+        <omgdi:waypoint x="570" y="660" />
+        <omgdi:waypoint x="570" y="710" />
+        <omgdi:waypoint x="300" y="710" />
+        <omgdi:waypoint x="300" y="770" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0v0v51n_di" bpmnElement="Flow_0v0v51n">
+        <omgdi:waypoint x="630" y="950" />
+        <omgdi:waypoint x="682" y="950" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
