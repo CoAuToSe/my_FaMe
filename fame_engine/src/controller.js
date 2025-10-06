@@ -211,7 +211,7 @@ rclnodejs.init().then(() => {
     }
 
     /**
-     * Management of signal throwing // sus, seems to not work, to be checked
+     * Management of signal throwing // CATS: sus, seems to not work, to be checked
      */
     engine.broker.subscribeTmp('event', 'activity.signal', (routingKey, msg) => { // routingKey = activity.signal
         let topic_name = msg.content.name
@@ -221,7 +221,9 @@ rclnodejs.init().then(() => {
         //console.log(msg);
         const regexpr = /\${(.*?)\}/g; // all variables are identified through ${...}
 
+        // for key in topic_dict // what is topic_dict ? => the dictionary with every xml tag in it
         for (let key in topic_dict) {
+            // if the tag correspond to the one from the message??? go on 
             if (key === topic_name) {
                 message_type = topic_dict[key][0];
                 message_payload = topic_dict[key][1];
@@ -308,7 +310,7 @@ rclnodejs.init().then(() => {
             if (extn.$type === 'properties') {
                 ref_topic = activity.name;
                 let prop = extn.$children; // properties data
-                msg_type = prop[0].value; // TO FIX -> non ha controlli
+                msg_type = prop[0].value; // TO FIX -> non ha controlli // CATS: TF is that ????
                 // if it is a throw signal
                 if (prop.length > 1) {
                     msg_payload = prop[1].value;
@@ -320,7 +322,7 @@ rclnodejs.init().then(() => {
                         console.log(`Received message: `, msg);
                         //activity.environment.assignVariables();
                         Object.keys(msg).forEach(element => {
-                            // assing to global varibles the payload of the signal
+                            // assign to global variables the payload of the signal
                             const find = Object.keys(activity.environment.variables).find(v => v.startsWith(element));
                             if (find) { // check if there is a matching variable
                                 var value = msg[element];
