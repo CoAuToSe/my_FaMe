@@ -240,17 +240,25 @@ propertiesPanelResizer.addEventListener('dragstart', function (event) {
 
 //#TODO: improvements needed
 propertiesPanelResizer.addEventListener('dragend', function (event) {
-  stopX = event.screenX;
-  var width = 0;
-  if (startX < stopX) {
-    width = stopX - startX;
-  }
-  else {
-    width = startX - stopX;
-  }
-  propertiesPanel.style.width = open ? `${width}px` : null;
+    stopX = event.screenX;
+    var width = 0;
+    // if (startX < stopX) {
+    //     // width = stopX - startX;
+    //     width = stopX;
+    //     console.log(startX, stopX);
+    // }
+    // else {
+    //     // width = startX - stopX;
+    //     width = stopX;
+    //     console.log(startX, stopX);
+    // }
+    
+    width = (window.screen.availWidth + window.innerWidth)/2 - stopX;
+    console.log(startX, stopX);
+    // propertiesPanel.style.width = open ? `${width}px` : null;
+    propertiesPanel.style.width = `${width}px`;
 
-  toggleProperties(open);
+    toggleProperties(open);
 });
 
 // Init the connection with ROS
