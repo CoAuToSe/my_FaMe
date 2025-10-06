@@ -61,8 +61,8 @@ this.environment.variables.nextTimerDuration = "PT1S";
       <bpmn:outgoing>Flow_0zcyc0w</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0z0agyt">
         <bpmn:timeDuration xsi:type="tFormalExpression">
-                    ${environment.variables.nextTimerDuration}
-                </bpmn:timeDuration>
+          ${environment.variables.nextTimerDuration}
+        </bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
     <bpmn:sequenceFlow id="Flow_1913056" sourceRef="Activity_0q0spcq" targetRef="Event_1t9d9el" />
