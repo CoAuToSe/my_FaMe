@@ -221,22 +221,28 @@ rclnodejs.init().then(() => {
         //console.log(msg);
         const regexpr = /\${(.*?)\}/g; // all variables are identified through ${...}
 
-        // for key in topic_dict // what is topic_dict ? => the dictionary with every xml tag in it
-        for (let key in topic_dict) {
-            // if the tag correspond to the one from the message??? go on 
-            if (key === topic_name) {
+        // for every ros topic FaMe uses
+        for (let key in topic_dict) { // what is topic_dict ? => the dictionary with every ros topic that FaMe uses
+            // if the name of the topic correspond to the one from the signal go on 
+            if (key === topic_name) { // mhm not really correct but ok
+                // get message type from topi_dict
                 message_type = topic_dict[key][0];
+                // and its payload (the data sent by the signal)
                 message_payload = topic_dict[key][1];
+                // get the vars from the payload ()
                 var tempvar = message_payload.match(regexpr);
                 // check if there are variables that needs a value assignment
                 if (tempvar) {
+                    // for every varables that needs to be assigned
                     for (let i = 0; i < tempvar.length; i++) {
                         var val = tempvar[i];
                         if (val.startsWith('$')) {
                             var variable = val.substring(2, val.length - 1); // removes ${}
                             //console.log(engine_env.variables);
+                            // set value to the value stored inside the engine's dictionnary
                             var value = engine_env.variables[variable];
                             //console.log(value);
+                            // change `${var_name}` into `var_value`
                             message_payload = message_payload.replace(val, value); // replace variable with value
                             topic_dict[key][1] = message_payload; // update topic dictionary
                         }
