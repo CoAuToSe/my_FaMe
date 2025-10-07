@@ -229,7 +229,7 @@ rclnodejs.init().then(() => {
                 message_type = topic_dict[key][0];
                 // and its payload (the data sent by the signal)
                 message_payload = topic_dict[key][1];
-                // get the vars from the payload ()
+                // get the vars from the payload
                 var tempvar = message_payload.match(regexpr);
                 // check if there are variables that needs a value assignment
                 if (tempvar) {
@@ -257,8 +257,7 @@ rclnodejs.init().then(() => {
             engine.execution.signal(msg.content.message, { ignoreSameDefinition: true });
             console.log(`Publishing message on ${topic_name}: ` + message_payload);
             const publisher = node.createPublisher(message_type, '/' + topic_name);
-            var message_obj_raw = JSON.parse(message_payload); // conversion from string to obj
-            var message_obj = stripNS(message_obj_raw);
+            var message_obj = JSON.parse(message_payload);  // conversion from string to obj
             publisher.publish(message_obj);
         }
     }, { noAck: true });
