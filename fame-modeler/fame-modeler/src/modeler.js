@@ -211,7 +211,7 @@ async function downloadSVG() {
 function scriptControl() {
     const elementRegistry = modeler.get('elementRegistry');
     elementRegistry.forEach(function (element) {
-        if (element.type && element.type == 'bpmn:ScriptTask' && element.businessObject.scriptFormat == 'JavaScript' && element.businessObject.script !== undefined) {
+        if ((element.type && element.type == 'bpmn:ScriptTask' || element.type && element.type == 'ScriptTask') && element.businessObject.scriptFormat == 'JavaScript' && element.businessObject.script !== undefined) {
             const oldScript = element.businessObject.script;
             if (!oldScript.includes('next()'))
                 element.businessObject.script = oldScript + '\nnext();';
