@@ -9,6 +9,47 @@ SHELL := /bin/bash
 %:
 	@:
 
+
+# /====================================\
+# |          Paths & Variables         |
+# \====================================/
+
+HOME_DIR := $(PWD)
+ROS2_SETUP=/opt/ros/$$ROS_DISTRO/setup.bash
+ROS2_SHARED := $(HOME_DIR)/ros2_shared
+TELLO_MSGS := $(HOME_DIR)/tello_msgs
+FAME := /home/dell/Documents/GitHub/my_FaMe
+FAME_MODELER := $(FAME)/fame-modeler
+# FAME := $(HOME_DIR)/fame
+FAME_AGRI := $(FAME)/fame_agricultural
+FAME_ENGINE := $(FAME)/fame_engine
+FAME_SIMU := $(FAME)/fame_simulation
+GZ_MODEL_DIR := $(HOME_DIR)/.gazebo/models # might need to be $(HOME) and not $(HOME_DIR)
+MBROS_DIR := /home/ubuntu/mbros/fame_engine/process
+HUSKY_WS := $(HOME)/husky_ws
+HUSKY := $(HUSKY_WS)/husky
+SIMU_GAZEBO := ~/Simulation_Gazebo/tello_ros_ws
+
+
+MBROS_DIR      := /home/ubuntu/mbros/fame_engine
+NVM_SCRIPT     := $$HOME/.nvm/nvm.sh          # ≠ variable d’env. de nvm
+NODE_VERSION   := 16                          # LTS Gallium (ABI 93)
+NPM_VERSION := 16
+
+DELAY ?= 20
+
+PATH_TELLO_WS=$(HOME)/Simulation_Gazebo/tello_ros_ws
+PATH_TELLO_WS_OLD=$(PFE)/Simulation_Gazebo_old/tello_ros_ws
+PATH_TELLO_WS_SW=$(PFE)/Simulation_Gazebo_SW/tello_ros_ws
+
+PATH_PFE:=$(HOME)/PFE
+PFE:=$(HOME)/PFE
+
+
+# /====================================\
+# |            Random Macro            |
+# \====================================/
+
 # Default target
 all: min_install_2004
 
@@ -38,6 +79,20 @@ setup_2404:						\
 	install_software_2404		\
 	install_software
 	@echo "After clonning you need to execute 'make copy_from_github'"
+
+setup_deps:
+	echo "WIP"
+
+setup_deps_24_04:
+	${update}
+	${install} \
+		ros-$$ROS_DISTRO-rclcpp-components \
+		ros-$$ROS_DISTRO-cv-bridge \
+		ros-$$ROS_DISTRO-image-transport \
+		ros-$$ROS_DISTRO-camera-info-manager \
+		libopencv-dev \
+		libasio-dev
+
 
 # /====================================\
 # |           Macro  install           |
@@ -224,6 +279,7 @@ install_discord_snap: install_snap
 	@sudo snap install discord
 	@echo "Discord installé avec Snap."
 
+#deprecated
 install_FaMe_modeler: update_source
 	@if [ ! -d "fame-modeler" ]; then 										\
 		git clone https://github.com/SaraPettinari/fame-modeler.git; 		\
@@ -546,38 +602,6 @@ print_supported_version:
 	fi
 
 # /====================================\
-# |          Paths & Variables         |
-# \====================================/
-
-HOME_DIR := $(PWD)
-ROS2_SHARED := $(HOME_DIR)/ros2_shared
-TELLO_MSGS := $(HOME_DIR)/tello_msgs
-FAME := $(HOME_DIR)/my_FaMe
-FAME_AGRI := $(FAME)/fame_agricultural
-FAME_ENGINE := $(FAME)/fame_engine
-FAME_SIMU := $(FAME)/fame_simulation
-GZ_MODEL_DIR := $(HOME_DIR)/.gazebo/models # might need to be $(HOME) and not $(HOME_DIR)
-MBROS_DIR := /home/ubuntu/mbros/fame_engine/process
-HUSKY_WS := $(HOME)/husky_ws
-HUSKY := $(HUSKY_WS)/husky
-SIMU_GAZEBO := ~/Simulation_Gazebo/tello_ros_ws
-
-
-MBROS_DIR      := /home/ubuntu/mbros/fame_engine
-NVM_SCRIPT     := $$HOME/.nvm/nvm.sh          # ≠ variable d’env. de nvm
-NODE_VERSION   := 16                          # LTS Gallium (ABI 93)
-NPM_VERSION := 16
-
-DELAY ?= 20
-
-PATH_TELLO_WS=$(HOME)/Simulation_Gazebo/tello_ros_ws
-PATH_TELLO_WS_OLD=$(PFE)/Simulation_Gazebo_old/tello_ros_ws
-PATH_TELLO_WS_SW=$(PFE)/Simulation_Gazebo_SW/tello_ros_ws
-
-PATH_PFE:=$(HOME)/PFE
-PFE:=$(HOME)/PFE
-
-# /====================================\
 # |            package  deps           |
 # \====================================/
 
@@ -586,7 +610,7 @@ define from_git_clean
 clone_$1:
 	@-if [ ! -f $2 ] ; then echo "mkdir -p $2";  mkdir -p $2 ; fi
 	@-if [ -d $2 ] ; then echo -n "git clone $3 $2 -b $4" && git clone $3 $2 -b $4 ; fi
-clean_$1:
+clean_$1: check_with_user
 	sudo rm -r $2
 endef
 
@@ -630,7 +654,7 @@ correct_git_clone:
 define setup_pkg
 .PHONY: setup_$(1) clear_$(1)
 setup_$(1):
-	@if [ -n "$(4)" ]; then 
+	@if [ -n "$(5)" ]; then 
 		echo "export NVM_DIR=\"$$$$HOME/.nvm\"" ; export NVM_DIR="$$$$HOME/.nvm"; 
 		if [ -f "$$$$HOME/.nvm/nvm.sh" ]; then 
 			echo "source \"$$$$HOME/.nvm/nvm.sh\"" ; . "$$$$HOME/.nvm/nvm.sh"; 
@@ -640,6 +664,11 @@ setup_$(1):
 		fi; 
 	  	echo "nvm use $(NODE_VERSION)" ; nvm use $(NODE_VERSION); 
 	fi; 
+	for rf in $(4); do 
+	  if [ -f "$$$$rf" ]; then 
+	    echo "source \"$$$$rf\""; . "$$$$rf"; 
+	  fi; 
+	done; 
 	for d in $(3); do 
 		if [ -f "$$$$d/install/setup.bash" ]; then 
 			echo "source \"$$$$d/install/setup.bash\"" ; . "$$$$d/install/setup.bash"; 
@@ -647,9 +676,9 @@ setup_$(1):
 	done; 
 	echo "cd $(2)" ; cd $(2);
 
-	@if [ "$(5)" == "build" ]; then 
+	@if [ "$(6)" == "build" ]; then 
 		echo "colcon build" ; colcon build ;
-# 	elif [[ "$(5)" == "npm" ]]; then
+# 	elif [[ "$(6)" == "npm" ]]; then
 # 		echo "npm install" ; npm install ;
 # 		echo "colcon build" ; colcon build ;
 	else 
@@ -658,11 +687,19 @@ setup_$(1):
 
 clear_$(1):
 	@cd $(2) && echo -n "[$(2)] " && $(call _clear_ros)
+	@if [ "$(6)" == "npm" ]; then 
+		echo "rm -rf $(2)/node_modules" ; rm -rf $(2)/node_modules;
+		echo "rm $(2)/package-lock.json" ; rm $(2)/package-lock.json;
+	fi;
+
 endef
 
-$(eval $(call setup_pkg,ros2_shared,$(ROS2_SHARED),,,))
-$(eval $(call setup_pkg,tello_msgs,$(TELLO_MSGS),$(ROS2_SHARED),nvm,))
-$(eval $(call setup_pkg,husky,$(HUSKY),$(SIMU_GAZEBO),,))
+$(eval $(call setup_pkg,ros2_shared,$(ROS2_SHARED),,,,))
+$(eval $(call setup_pkg,tello_msgs,$(TELLO_MSGS),$(ROS2_SHARED),$(ROS2_SETUP),nvm,))
+
+$(eval $(call setup_pkg,husky,$(HUSKY),$(SIMU_GAZEBO),,,))
+
+$(eval $(call setup_pkg,tello,$(PATH_TELLO_WS),,,nvm,))
 
 setup_FaMe_link:
 	-sudo mkdir /home/ubuntu
@@ -671,10 +708,10 @@ setup_FaMe_link:
 	@echo "Link succesfully created"
 
 # symlink -> might not be working for some reasons, need to clear before setup # to be checked as it might be rectified
-$(eval $(call setup_pkg,FaMe,$(FAME),,nvm,build))
-$(eval $(call setup_pkg,FaMe_engine,$(FAME_ENGINE),,nvm,))
-$(eval $(call setup_pkg,FaMe_agricultural,$(FAME_AGRI),$(FAME_ENGINE),nvm,build)) # symlink -> not working
-$(eval $(call setup_pkg,FaMe_simulation,$(FAME_SIMU),$(FAME_ENGINE),nvm,build)) # to check
+$(eval $(call setup_pkg,FaMe,$(FAME),,,nvm,build))
+$(eval $(call setup_pkg,FaMe_engine,$(FAME_ENGINE),$(ROS2_SHARED) $(TELLO_MSGS),$(ROS2_SETUP),nvm,npm))
+$(eval $(call setup_pkg,FaMe_agricultural,$(FAME_AGRI),$(FAME_ENGINE),,nvm,build)) # symlink -> not working
+$(eval $(call setup_pkg,FaMe_simulation,$(FAME_SIMU),$(FAME_ENGINE),,nvm,build)) # to check
 
 # setup_FaMe_simulation:
 # 	cd $(ROS2_SHARED) && source install/setup.bash && \
@@ -730,7 +767,8 @@ launch_gazebo_2004:
 # \====================================/
 
 launch_FaMe_modeler:
-	cd fame-modeler && . $$HOME/.nvm/nvm.sh && npm run start &
+	cd $(FAME_MODELER) && . $$HOME/.nvm/nvm.sh && npm install
+	cd $(FAME_MODELER) && . $$HOME/.nvm/nvm.sh && npm run start &
 
 clone_FaMe_deps:	  \
 	clone_ros2_shared \
@@ -801,19 +839,19 @@ launch_$(1):
 	  	echo "nvm use $(NODE_VERSION)" ; nvm use $(NODE_VERSION); 
 	fi; 
 	for d in $(5); do 
-	  if [ -f "$$$$d/install/setup.bash" ]; then 
-	    echo "source \"$$$$d/install/setup.bash\""; . "$$$$d/install/setup.bash"; 
-	  fi; 
+		if [ -f "$$$$d/install/setup.bash" ]; then 
+			echo "source \"$$$$d/install/setup.bash\""; . "$$$$d/install/setup.bash"; 
+		fi; 
 	done; 
 	for rf in $(6); do 
-	  if [ -f "$$$$rf" ]; then 
-	    echo "source \"$$$$rf\""; . "$$$$rf"; 
-	  fi; 
+		if [ -f "$$$$rf" ]; then 
+			echo "source \"$$$$rf\""; . "$$$$rf"; 
+		fi; 
 	done; 
 	for var in $(7); do 
-	  if [ -f "$$$$var" ]; then 
-	    echo "export \"$$$$var\""; export "$$$$var"; 
-	  fi; 
+		if [ -f "$$$$var" ]; then 
+			echo "export \"$$$$var\""; export "$$$$var"; 
+		fi; 
 	done; 
 	echo "ros2 launch $(2)" ; ros2 launch $(2) 
 endef
@@ -821,7 +859,14 @@ endef
 # TODO add : ros2 launch tello_gazebo tello_synchro_launch_cats_3.py # and similar
 
 $(eval $(call launch_pkg,FaMe_CATS,fame_engine my_CATS.py,nvm,,$(FAME_ENGINE),,))
+$(eval $(call launch_pkg,FaMe_husky,fame_engine my_CATS.py,nvm,,$(FAME_ENGINE),,))
 
+$(eval $(call launch_pkg,tello_controller,tello_nodes tello_control_node.launch.py,nvm,,$(PATH_TELLO_WS),,))
+$(eval $(call launch_pkg,FaMe_tello,fame_engine tello.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE),,))
+$(eval $(call launch_pkg,FaMe_husky_tello,fame_engine husky_tello.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE),,))
+
+FaMe_engine_correct_env:
+	@echo "rm -rf $(FAME_ENGINE)/node_modules" ; rm -rf $(FAME_ENGINE)/node_modules ;
 
 $(eval $(call launch_pkg,FaMe_agricultural_multi,fame_agricultural multi_launch.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
 $(eval $(call launch_pkg,FaMe_engine_agri,fame_engine agri_engine.launch.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
@@ -1084,10 +1129,18 @@ copy_$(1)_to_github:
 		mkdir -p "$$$$dst"; \
 		echo "rsync -a --delete $$$$src/ $$$$dst/"; \
 		sudo rsync -a --delete "$$$$src"/ "$$$$dst"/; \
+		if [ -d "$$$$dst/.git" ]; then \
+			echo "rm -r $$$$dst/.git"; \
+			sudo rm -r $$$$dst/.git; \
+		fi; \
 	else \
 		mkdir -p "$$$$(dirname "$$$$dst")"; \
 		echo "install -m 0644 $$$$src $$$$dst"; \
 		sudo install -m 0644 "$$$$src" "$$$$dst"; \
+		if [ -d "$$$$dst/.git" ]; then \
+			echo "rm -r $$$$dst/.git"; \
+			sudo rm -r $$$$dst/.git; \
+		fi; \
 	fi
 
 copy_$(1)_from_github: check_with_user
@@ -1119,7 +1172,7 @@ clean_$(1): check_with_user
 endef
 
 # Don't forget to let a folder of space while copying a folder
-$(eval $(call github,simu_gazebo,$(HOME)/Simulation_Gazebo/tello_ros_ws/,${PATH_PFE}/Simulation_Gazebo_new/))
+$(eval $(call github,simu_gazebo,$(PATH_TELLO_WS)/,${PATH_PFE}/Simulation_Gazebo_new/))
 $(eval $(call github,makefile,$(HOME)/Makefile,${PATH_PFE}/Makefile))
 $(eval $(call github,bashrc,$(HOME)/.bashrc,${PATH_PFE}/.bashrc))
 $(eval $(call github,code_setup,$(HOME)/.config/Code/User/,${PATH_PFE}/Code/User))
@@ -1128,5 +1181,8 @@ $(eval $(call github,FaMe,$(FAME)/,${PATH_PFE}/fame))
 $(eval $(call github,husky,$(HOME)/husky_ws/,${PATH_PFE}/husky_ws))
 $(eval $(call github,clearpath,$(HOME)/clearpath/,${PATH_PFE}/clearpath))
 $(eval $(call github,clearpath_ws,$(HOME)/clearpath_ws/,${PATH_PFE}/clearpath_ws))
+$(eval $(call github,tello_msgs_own,$(TELLO_MSGS)/,${PATH_PFE}/tello_msgs))
+$(eval $(call github,my_FaMe,/home/dell/Documents/GitHub/my_FaMe/,${PATH_PFE}/my_FaMe))
 # $(eval $(call github,,,))
+
 
