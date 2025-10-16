@@ -34,48 +34,6 @@ function stripNS(obj) {
     return obj;
 }
 
-// // function to load the bpmn file correctly
-// function writeProcess(source_process) {
-//     var conversion = convert.xml2json(source_process, { compact: true, spaces: 4 });
-//     conversion = conversion.replace(/'/g, '"');
-//     var conversion_obj_raw = JSON.parse(conversion);
-//     var conversion_obj = stripNS(conversion_obj_raw);
-//     //console.log(conversion_obj)
-//     // get inside the description of the process
-//     var processObj = conversion_obj['definitions']['process'];
-//     // get any callActivity
-//     var caObjs = processObj['callActivity'];
-//     // if there is a call activity inside the BPMN
-//     if (caObjs) {
-//         if (caObjs.length) {
-//             // for each item in call activity 
-//             for (let i = 0; i < caObjs.length; i++) {
-//                 // get the name of the called activity
-//                 var called_act = caObjs[i]._attributes.calledElement;
-//                 // found the bpmn at the process location
-//                 var ca_file = process_path + called_act + '.bpmn';
-//                 // try to open the file
-//                 var ca_source = fs.readFileSync(ca_file, 'utf8');
-//                 // add it to the process dict
-//                 process_dict[called_act] = [ca_source, false];
-//             }
-//         } else {
-//             // same as in the for loop (badly coded)
-//             var called_act = caObjs._attributes.calledElement;
-//             var ca_file = process_path + called_act + '.bpmn';
-//             var ca_source = fs.readFileSync(ca_file, 'utf8');
-//             process_dict[called_act] = [ca_source, false];
-//         }
-//     }
-//     // call the writeProcess recursively each new process that should be read
-//     Object.keys(process_dict).forEach(element => {
-//         if (!process_dict[element][1]) {
-//             process_dict[element][1] = true;
-//             writeProcess(process_dict[element][0]);
-//         }
-//     });
-// }
-
 // function to load the bpmn file correctly
 function writeProcess(source_process) {
     var conversion = convert.xml2json(source_process, { compact: true, spaces: 4 });
