@@ -1,4 +1,7 @@
 SHELL := /bin/bash
+.DEFAULT_GOAL := git_init_PFE
+.PHONY: default
+default: git_init_PFE ;
 
 .PHONY: all install_all install_terminator install_vscode_2004 correct_vscode_2004 install_ros2_foxy install_gazebo_2004 install_python_3_10 \
         test_ros2 test_gazebo versions install_FaMe_modeler run_FaMe_modeler install_nvm install_node install_cmake \
@@ -7,8 +10,23 @@ SHELL := /bin/bash
 		setup_FaMe_simulation install_github_desktop_2004 min_install_2004 install_github_desktop_2404 min_install_2404
 
 %:
+	@echo "command unknown"
 	@:
 
+PFE:=$(HOME)/PFE
+PATH_PFE:=$(PFE)
+
+.PHONY: git_init_PFE clean_PFE
+git_init_PFE:
+	@-if [ -d $(PFE) ] ; then \
+		echo "git clone https://github.com/CoAuToSe/PFE $(PFE)" && \
+		git clone https://github.com/CoAuToSe/PFE $(PFE) ; 
+	fi;
+	@echo "cd $(PFE) && git submodule update --init --recursive" && \
+		cd $(PFE) && git submodule update --init --recursive
+
+clean_PFE: check_with_user
+	sudo rm -r $(PFE)
 
 # /====================================\
 # |          Paths & Variables         |
@@ -18,7 +36,7 @@ HOME_DIR := $(PWD)
 ROS2_SETUP=/opt/ros/$$ROS_DISTRO/setup.bash
 ROS2_SHARED := $(HOME_DIR)/ros2_shared
 TELLO_MSGS := $(HOME_DIR)/tello_msgs
-FAME := /home/dell/Documents/GitHub/my_FaMe
+FAME := $(PFE)/my_FaMe
 FAME_MODELER := $(FAME)/fame-modeler
 # FAME := $(HOME_DIR)/fame
 FAME_AGRI := $(FAME)/fame_agricultural
@@ -42,12 +60,10 @@ PATH_TELLO_WS=$(HOME)/Simulation_Gazebo/tello_ros_ws
 PATH_TELLO_WS_OLD=$(PFE)/Simulation_Gazebo_old/tello_ros_ws
 PATH_TELLO_WS_SW=$(PFE)/Simulation_Gazebo_SW/tello_ros_ws
 
-PATH_PFE:=$(HOME)/PFE
-PFE:=$(HOME)/PFE
 
 
 # /====================================\
-# |           Useful  Define           |
+# |           Useful Defines           |
 # \====================================/
 
 
@@ -65,7 +81,8 @@ define from_git_clean
 .PHONY: clone_$1 clean_$1
 clone_$1:
 	@-if [ ! -f $2 ] ; then echo "mkdir -p $2";  mkdir -p $2 ; fi
-	@-if [ -d $2 ] ; then echo -n "git clone $3 $2 -b $4" && git clone $3 $2 -b $4 ; fi
+	@-if [ -d $2 ] ; then echo "git clone $3 $2 -b $4" && git clone $3 $2 -b $4 ; fi
+	cd $(PFE) && git submodule update --init --recursive
 clean_$1: check_with_user
 	sudo rm -r $2
 endef
@@ -227,7 +244,12 @@ $(eval $(call launch_pkg,FaMe_engine_agri,fame_engine agri_engine.launch.py,nvm,
 FaMe_engine_correct_env:
 	@echo "rm -rf $(FAME_ENGINE)/node_modules" ; rm -rf $(FAME_ENGINE)/node_modules ;
 
+$(eval $(call launch_pkg,FaMe_simulation_multi,fame_simulation multi_launch.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
+$(eval $(call launch_pkg,FaMe_engine_example,fame_engine example.launch.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
 
+$(eval $(call setup_pkg,pfe_simulation_gazebo,$(PATH_TELLO_WS),$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_SIMU),nvm,)) # to check
+
+$(eval $(call launch_pkg,pfe_simulation_gazebo,tello_gazebo someaze.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU) $(PATH_TELLO_WS),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
 
 # /====================================\
 # |            Random Macro            |
@@ -889,8 +911,8 @@ launch_FaMe:
 
 
 
-$(eval $(call launch_pkg,FaMe_simulation_multi,fame_simulation multi_launch.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
-# $(eval $(call launch_pkg,FaMe_engine_agri,fame_engine agri_engine.launch.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
+# $(eval $(call launch_pkg,FaMe_simulation_multi,fame_simulation multi_launch.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
+# # $(eval $(call launch_pkg,FaMe_engine_agri,fame_engine agri_engine.launch.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
 .ONESHELL: launch_comportement_agri
 launch_comportement_agri:
 	@
@@ -907,8 +929,8 @@ launch_comportement_agri:
 
 setup_example: setup_tello_msgs setup_FaMe_engine setup_FaMe_simulation setup_FaMe_agricultural
 
-# $(eval $(call launch_pkg,FaMe_simulation_multi,fame_simulation multi_launch.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
-$(eval $(call launch_pkg,FaMe_engine_example,fame_engine example.launch.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
+# # $(eval $(call launch_pkg,FaMe_simulation_multi,fame_simulation multi_launch.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
+# $(eval $(call launch_pkg,FaMe_engine_example,fame_engine example.launch.py,nvm,,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
 .ONESHELL: launch_example
 launch_example:
 	@
@@ -926,9 +948,9 @@ launch_example:
 # launch_fame_modeler:
 # 	cd ./fame-modeler && npm start
 
-$(eval $(call setup_pkg,pfe_simulation_gazebo,$(PATH_TELLO_WS),$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_SIMU),nvm,)) # to check
+# $(eval $(call setup_pkg,pfe_simulation_gazebo,$(PATH_TELLO_WS),$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_SIMU),nvm,)) # to check
 
-$(eval $(call launch_pkg,pfe_simulation_gazebo,tello_gazebo someaze.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU) $(PATH_TELLO_WS),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
+# $(eval $(call launch_pkg,pfe_simulation_gazebo,tello_gazebo someaze.py,nvm,kill,$(ROS2_SHARED) $(TELLO_MSGS) $(FAME_ENGINE) $(FAME_AGRI) $(FAME_SIMU) $(PATH_TELLO_WS),/usr/share/gazebo/setup.bash,NODE_OPTIONS="--unhandled-rejections=strict"))
 
 
 # /====================================\
@@ -1042,6 +1064,3 @@ $(eval $(call github,my_FaMe,$(FAME),${PATH_PFE}/my_FaMe))
 
 copy_to_my_FaMe_makefile:
 	sudo install -m 0644 "$(PFE)/Makefile" "$(FAME)/Makefile";
-
-
-
