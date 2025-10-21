@@ -40,4 +40,4 @@ export function pubOrSub(el) {
     else if (el.type == "bpmn:StartEvent" || el.type == "bpmn:IntermediateCatchEvent") return "sub";
     else if (el.type == "bpmn:EndEvent" || el.type == "bpmn:IntermediateThrowEvent") return "pub";
     return null;
-  }
+}

@@ -7,28 +7,29 @@ import { isArray } from 'min-dash';
 /**
  * Get extension elements of business object. Optionally filter by type.
  *
- * @param  {ModdleElement} businessObject
- * @param  {String} [type=undefined]
+ * @param {ModdleElement} businessObject
+ * @param {String} [type=undefined]
  * @returns {Array<ModdleElement>}
  */
 export function getExtensionElementsList(businessObject, type = undefined) {
-  const extensionElements = businessObject.get('extensionElements');
+    const extensionElements = businessObject.get('extensionElements');
+    console.log("got an extensionElements")
 
-  if (!extensionElements) {
-    return [];
-  }
+    if (!extensionElements) {
+        return [];
+    }
 
-  const values = extensionElements.get('values');
+    const values = extensionElements.get('values');
 
-  if (!values || !values.length) {
-    return [];
-  }
+    if (!values || !values.length) {
+        return [];
+    }
 
-  if (type) {
-    return values.filter(value => is(value, type));
-  }
+    if (type) {
+        return values.filter(value => is(value, type));
+    }
 
-  return values;
+    return values;
 }
 
 /**
@@ -40,48 +41,48 @@ export function getExtensionElementsList(businessObject, type = undefined) {
  * @param {CommandStack} commandStack
  */
 export function addExtensionElements(element, businessObject, extensionElementToAdd, bpmnFactory, commandStack) {
-  const commands = [];
+    const commands = [];
 
-  let extensionElements = businessObject.get('extensionElements');
+    let extensionElements = businessObject.get('extensionElements');
 
-  // (1) create bpmn:extensionElements if it doesn't exist
-  if (!extensionElements) {
-    extensionElements = createElement(
-      'bpmn:ExtensionElements',
-      {
-        values: []
-      },
-      businessObject,
-      bpmnFactory
-    );
+    // (1) create bpmn:extensionElements if it doesn't exist
+    if (!extensionElements) {
+        extensionElements = createElement(
+            'bpmn:ExtensionElements',
+            {
+                values: []
+            },
+            businessObject,
+            bpmnFactory
+        );
 
-    commands.push({
-      cmd: 'element.updateModdleProperties',
-      context: {
-        element,
-        moddleElement: businessObject,
-        properties: {
-          extensionElements
-        }
-      }
-    });
-  }
-
-  extensionElementToAdd.$parent = extensionElements;
-
-  // (2) add extension element to list
-  commands.push({
-    cmd: 'element.updateModdleProperties',
-    context: {
-      element,
-      moddleElement: extensionElements,
-      properties: {
-        values: [ ...extensionElements.get('values'), extensionElementToAdd ]
-      }
+        commands.push({
+            cmd: 'element.updateModdleProperties',
+            context: {
+                element,
+                moddleElement: businessObject,
+                properties: {
+                    extensionElements
+                }
+            }
+        });
     }
-  });
 
-  commandStack.execute('properties-panel.multi-command-executor', commands);
+    extensionElementToAdd.$parent = extensionElements;
+
+    // (2) add extension element to list
+    commands.push({
+        cmd: 'element.updateModdleProperties',
+        context: {
+            element,
+            moddleElement: extensionElements,
+            properties: {
+                values: [ ...extensionElements.get('values'), extensionElementToAdd ]
+            }
+        }
+    });
+
+    commandStack.execute('properties-panel.multi-command-executor', commands);
 }
 
 /**
@@ -93,18 +94,18 @@ export function addExtensionElements(element, businessObject, extensionElementTo
  * @param {CommandStack} commandStack
  */
 export function removeExtensionElements(element, businessObject, extensionElementsToRemove, commandStack) {
-  if (!isArray(extensionElementsToRemove)) {
-    extensionElementsToRemove = [ extensionElementsToRemove ];
-  }
-
-  const extensionElements = businessObject.get('extensionElements'),
-        values = extensionElements.get('values').filter(value => !extensionElementsToRemove.includes(value));
-
-  commandStack.execute('element.updateModdleProperties', {
-    element,
-    moddleElement: extensionElements,
-    properties: {
-      values
+    if (!isArray(extensionElementsToRemove)) {
+        extensionElementsToRemove = [ extensionElementsToRemove ];
     }
-  });
+
+    const extensionElements = businessObject.get('extensionElements'),
+                values = extensionElements.get('values').filter(value => !extensionElementsToRemove.includes(value));
+
+    commandStack.execute('element.updateModdleProperties', {
+        element,
+        moddleElement: extensionElements,
+        properties: {
+            values
+        }
+    });
 }
