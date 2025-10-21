@@ -3,31 +3,31 @@
     "prefix": "callActivity",
     "uri": "http://callActivity",
     "xml": {
-      "tagAlias": "lowerCase"
+        "tagAlias": "lowerCase"
     },
     "associations": [],
     "types": [
-      {
-        "name": "DBConnection",
-        "extends": [
-          "bpmn:CallActivity"
-        ],
-        "properties": [
-          {
+        {
             "name": "DBConnection",
-            "isAttr": true,
-            "type": "String"
-          }
-        ]
-      },
-      {
-        "name": "process",
-        "properties": [
-          {
-            "name": "data",
-            "type": "String"
-          }
-        ]
-      }
+            "extends": [
+                "bpmn:CallActivity"
+            ],
+            "properties": [
+                {
+                    "name": "DBConnection",
+                    "isAttr": true,
+                    "type": "String"
+                }
+            ]
+        },
+        {
+            "name": "process",
+            "properties": [
+                {
+                    "name": "data",
+                    "type": "String"
+                }
+            ]
+        }
     ]
-  }
+}

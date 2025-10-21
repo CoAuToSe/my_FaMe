@@ -1,37 +1,37 @@
 {
-  "name": "Data",
-  "prefix": "data",
-  "uri": "http://data",
-  "xml": {
-    "tagAlias": "lowerCase"
-  },
-  "associations": [],
-  "types": [
-    {
-      "name": "parameters",
-      "superClass": [ "Element" ],
-      "properties": [
-        {
-          "name": "values",
-          "isMany": true,
-          "type": "parameter"
-        }
-      ]
+    "name": "Data",
+    "prefix": "data",
+    "uri": "http://data",
+    "xml": {
+        "tagAlias": "lowerCase"
     },
-    {
-      "name": "parameter",
-      "properties": [
+    "associations": [],
+    "types": [
         {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
+            "name": "parameters",
+            "superClass": [ "Element" ],
+            "properties": [
+                {
+                    "name": "values",
+                    "isMany": true,
+                    "type": "parameter"
+                }
+            ]
         },
         {
-          "name": "value",
-          "isAttr": true,
-          "type": "String"
+            "name": "parameter",
+            "properties": [
+                {
+                    "name": "name",
+                    "isAttr": true,
+                    "type": "String"
+                },
+                {
+                    "name": "value",
+                    "isAttr": true,
+                    "type": "String"
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }

@@ -190,13 +190,16 @@ rclnodejs.init().then(() => {
         listener.on('flow.take', (flow) => {
             console.log(`flow.take <${flow.id}> was taken`);
         });
-    */
+     */
+
+    // at every block start
     listener.on('activity.start', (activity) => {
         if (tstart == 0) tstart = activity.messageProperties.timestamp;
         handleDataObj(activity);
         // console.log(`activity.start <${activity.id}> was taken`);
     });
 
+    // at every block end
     listener.on('activity.end', (activity) => {
         tfinish = activity.messageProperties.timestamp;
         // add activity variables to global ones
@@ -233,16 +236,18 @@ rclnodejs.init().then(() => {
     }
 
     /**
-     * Management of signal throwing // CATS: sus, seems to not work, to be checked
+     * Management of signal throwing // CATS: sus, seems to not work, to be checked // redo comments seems 
      */
     engine.broker.subscribeTmp('event', 'activity.signal', (routingKey, msg) => { // routingKey = activity.signal
-        let topic_name = msg.content.name
+        let topic_name = msg.content.name;
+        console.log("signal activity for:", topic_name);
+
         let message_type;
         let message_payload;
         let check = false;
         //console.log(msg);
         const regexpr = /\${(.*?)\}/g; // all variables are identified through ${...}
-
+        // console.log(topic_dict);
         // for every ros topic FaMe uses
         for (let key in topic_dict) { // what is topic_dict ? => the dictionary with every ros topic that FaMe uses
             // if the name of the topic correspond to the one from the signal go on 
@@ -275,6 +280,7 @@ rclnodejs.init().then(() => {
             }
         }
         // Publish ros topic
+        // console.log(check);
         if (check) {
             engine.execution.signal(msg.content.message, { ignoreSameDefinition: true });
             console.log(`Publishing message on ${topic_name}: ` + message_payload);
@@ -315,15 +321,20 @@ rclnodejs.init().then(() => {
     engine.on('end', (execution) => {
         // console.log('Ended:', process_name);
         console.log('Ended:', bpmn_name);
+        // you might want to change this, but currently it is more annoying then anything else for me
+        console.log("killing the process");
+        process.kill(process.pid);
     });
 
-    // ????
+    // example of a simple implementation of a function inside the engine
     function set(activity, name, value) {
         activity.logger.debug('set', name, 'to', value);
     }
 
+
+    //function used during signal interpretation to extract camunda properties // doesn't seems to work as intended
     /**
-     * Manages camunda external properties
+     * Manages camunda external properties // stfu it is not that
      * @param {*} activity 
      */
     function camundaExtProperties(activity) {
@@ -332,12 +343,21 @@ rclnodejs.init().then(() => {
         let msg_type; // message type
         let ref_topic; // topic name
         let msg_payload; // massage payload
+
+        // console.log(activity)
+        // console.log(activity.activityDefinition)
+        // console.log(activity.behaviour)
+        // console.log(activity.behaviour['$type'])
+        // console.log(activity.behaviour.name)
+        // console.log(activity.behaviour.extensionElements)
+        // console.log(activity.behaviour.extensionElements.$type)
+        if (!activity.behaviour.extensionElements.values) return;
         for (const extn of activity.behaviour.extensionElements.values) {
             // only do the following operation on the 'properties' block
             if (extn.$type === 'properties') {
                 ref_topic = activity.name;
                 let prop = extn.$children; // properties data
-                msg_type = prop[0].value; // TO FIX -> non ha controlli // CATS: TF is that ????
+                msg_type = prop[0].value; // TO FIX -> non ha controlli // CATS: ThFu is that ???? that's why it doesn't work
                 // if it is a throw signal
                 if (prop.length > 1) {
                     msg_payload = prop[1].value;
