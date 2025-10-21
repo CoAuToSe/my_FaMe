@@ -317,6 +317,7 @@ if (remoteDiagram) {
     openDiagram(initialDiagram);
 }
 
+// really useful ???? as everything else doesn't seems to work correctly ?
 /**
  * Quality of Service handler
  */
