@@ -49,16 +49,17 @@ request["cmd"] = "land";
 client.waitForService(1000).then((result) =&gt; {
     if (!result) {
         this.environment.services.console.log("Error: service not available");
-        return;
+        next();
     }
     this.environment.services.console.log("Sending: ", request);
     client.sendRequest(request, (response) =&gt; {
         this.environment.services.console.log("Result: ", response);
     });
+    next();
 });
 this.environment.services.console.log("landing");
 
-next();</bpmn:script>
+</bpmn:script>
     </bpmn:scriptTask>
     <bpmn:endEvent id="Event_09m97ox">
       <bpmn:incoming>Flow_17duhnu</bpmn:incoming>
