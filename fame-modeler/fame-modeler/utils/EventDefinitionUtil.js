@@ -1,66 +1,18 @@
-import {isAny} from 'bpmn-js/lib/features/modeling/util/ModelingUtil';
+import {
+    isAny
+} from 'bpmn-js/lib/features/modeling/util/ModelingUtil';
 
-import {getBusinessObject, is} from 'bpmn-js/lib/util/ModelUtil';
+import {
+    getBusinessObject,
+    is
+} from 'bpmn-js/lib/util/ModelUtil';
 
-import {find} from 'min-dash';
-
-/**
- * Teste si `element` correspond au type de `types`,
- * en acceptant "bpmn:Foo" ou "Foo".
- * @param {any} element
- * @param {string} type
- * @param {string} [defaultNs='bpmn']
- */
-export function isCompat(element, type, defaultNs = 'bpmn') {
-    // enlève n'importe quel préfixe (bpmn:, camunda:, etc.)
-    const bare = type.replace(/^[^:]*:/, '');
-    const candidates = [`${defaultNs}:${bare}`, bare];
-    // dédoublonne au cas où
-    const unique = Array.from(new Set(candidates));
-    return isAny(element, unique);
-}
-
-
-/**
- * Teste si `element` correspond à au moins un type de `types`,
- * en acceptant "bpmn:Foo" ou "Foo".
- * @param {any} element
- * @param {string|string[]} types
- * @param {string} [defaultNs='bpmn']
- */
-export function isCompatAny(element, types, defaultNs = 'bpmn') {
-    const arr = Array.isArray(types) ? types : [types];
-    const expanded = [];
-
-    for (const t of arr) {
-        if (typeof t !== 'string' || !t.trim()) continue;
-        const bare = t.replace(/^[^:]*:/, ''); // retire un éventuel préfixe
-        expanded.push(`${defaultNs}:${bare}`, bare);
-    }
-
-    // dédoublonnage en conservant l’ordre
-    const seen = new Set();
-    const unique = expanded.filter(v => v && !seen.has(v) && seen.add(v));
-
-    if (unique.length === 0) return false;
-    return isAny(element, unique);
-}
-
-/** Si tu veux réutiliser l’expansion ailleurs */
-export function expandTypes(types, defaultNs = 'bpmn') {
-    const arr = Array.isArray(types) ? types : [types];
-    const out = [];
-    for (const t of arr) {
-        if (typeof t !== 'string' || !t.trim()) continue;
-        const bare = t.replace(/^[^:]*:/, '');
-        out.push(`${defaultNs}:${bare}`, bare);
-    }
-    const seen = new Set();
-    return out.filter(v => v && !seen.has(v) && seen.add(v));
-}
+import {
+    find
+} from 'min-dash';
 
 export function isErrorSupported(element) {
-    return isCompatAny(element, [
+    return isAny(element, [
         'bpmn:StartEvent',
         'bpmn:BoundaryEvent',
         'bpmn:EndEvent'
@@ -72,11 +24,10 @@ export function getErrorEventDefinition(element) {
 }
 
 export function isTimerSupported(element) {
-    return isCompatAny(element, [
+    return isAny(element, [
         'bpmn:StartEvent',
         'bpmn:IntermediateCatchEvent',
-        'bpmn:BoundaryEvent',
-        'StartEvent'
+        'bpmn:BoundaryEvent'
     ]) && !!getTimerEventDefinition(element);
 }
 
@@ -125,13 +76,13 @@ export function getEventDefinition(element, eventType) {
     const eventDefinitions = businessObject.get('eventDefinitions') || [];
 
     return find(eventDefinitions, function(definition) {
-        return isCompat(definition, eventType);
+        return is(definition, eventType);
     });
 }
 
 export function isMessageSupported(element) {
-    return isCompat(element, 'bpmn:ReceiveTask') || (
-        isCompatAny(element, [
+    return is(element, 'bpmn:ReceiveTask') || (
+        isAny(element, [
             'bpmn:StartEvent',
             'bpmn:EndEvent',
             'bpmn:IntermediateThrowEvent',
@@ -162,7 +113,7 @@ export function getExtension(element, type) {
 }
 
 export function getMessageEventDefinition(element) {
-    if (isCompat(element, 'bpmn:ReceiveTask')) {
+    if (is(element, 'bpmn:ReceiveTask')) {
         return getBusinessObject(element);
     }
 
@@ -184,14 +135,14 @@ export function getSignalEventDefinition(element) {
 }
 
 export function isLinkSupported(element) {
-    return isCompatAny(element, [
+    return isAny(element, [
         'bpmn:IntermediateThrowEvent',
         'bpmn:IntermediateCatchEvent'
     ]) && !!getLinkEventDefinition(element);
 }
 
 export function isSignalSupported(element) {
-    return isCompat(element, 'bpmn:Event') && !!getSignalEventDefinition(element);
+    return is(element, 'bpmn:Event') && !!getSignalEventDefinition(element);
 }
 
 export function getSignal(element) {
@@ -205,7 +156,7 @@ export function getEscalationEventDefinition(element) {
 }
 
 export function isEscalationSupported(element) {
-    return isCompat(element, 'bpmn:Event') && !!getEscalationEventDefinition(element);
+    return is(element, 'bpmn:Event') && !!getEscalationEventDefinition(element);
 }
 
 export function getEscalation(element) {
@@ -215,7 +166,7 @@ export function getEscalation(element) {
 }
 
 export function isCompensationSupported(element) {
-    return isCompatAny(element, [
+    return isAny(element, [
         'bpmn:EndEvent',
         'bpmn:IntermediateThrowEvent'
     ]) && !!getCompensateEventDefinition(element);
