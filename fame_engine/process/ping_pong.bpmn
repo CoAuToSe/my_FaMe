@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+            xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+            id="Definitions_1tvdujm"
+            targetNamespace="http://bpmn.io/schema/bpmn"
+            exporter="bpmn-js-token-simulation"
+            exporterVersion="0.1.5">
+
+  <signal id="Signal_3s4qp90" name="done" />
+  <signal id="Signal_0lmf12i" name="target_found" />
+  <signal id="Signal_12llsds" name="ciao" />
+  <process id="Process_10rmxjv" name="hello_world" isExecutable="true">
+    <startEvent id="Event_0x806dn" name="start">
+      <outgoing>Flow_1aembh1</outgoing>
+    </startEvent>
+    <scriptTask id="Activity_0pk9kqv" name="debug : sending ping" scriptFormat="JavaScript">
+      <incoming>Flow_0xhn5pe</incoming>
+      <outgoing>Flow_05ndf0q</outgoing>
+      <script>this.environment.services.console.log( "objet 1 : sending ping" );
+next();</script>
+    </scriptTask>
+    <endEvent id="Event_0wdbtf4" name="end">
+      <incoming>Flow_0w5846e</incoming>
+    </endEvent>
+    <sequenceFlow id="Flow_1aembh1" sourceRef="Event_0x806dn" targetRef="Gateway_0mvulu3" />
+    <parallelGateway id="Gateway_0mvulu3">
+      <incoming>Flow_1aembh1</incoming>
+      <outgoing>Flow_0xhn5pe</outgoing>
+      <outgoing>Flow_06n2osu</outgoing>
+    </parallelGateway>
+    <sequenceFlow id="Flow_0xhn5pe" sourceRef="Gateway_0mvulu3" targetRef="Activity_0pk9kqv" />
+    <sequenceFlow id="Flow_05ndf0q" sourceRef="Activity_0pk9kqv" targetRef="Gateway_1t88zuk" />
+    <parallelGateway id="Gateway_1t88zuk">
+      <incoming>Flow_05ndf0q</incoming>
+      <incoming>Flow_0akg17i</incoming>
+      <outgoing>Flow_0l14mu5</outgoing>
+      <outgoing>Flow_1qgwaab</outgoing>
+    </parallelGateway>
+    <sequenceFlow id="Flow_0l14mu5" sourceRef="Gateway_1t88zuk" targetRef="Activity_1os9yvx" />
+    <sequenceFlow id="Flow_14tl2vt" sourceRef="Activity_1os9yvx" targetRef="Gateway_04321o7" />
+    <parallelGateway id="Gateway_04321o7">
+      <incoming>Flow_14tl2vt</incoming>
+      <incoming>Flow_1l8mvm3</incoming>
+      <outgoing>Flow_1ja014u</outgoing>
+    </parallelGateway>
+    <scriptTask id="Activity_1os9yvx" name="debug : waiting for pong" scriptFormat="JavaScript">
+      <incoming>Flow_0l14mu5</incoming>
+      <outgoing>Flow_14tl2vt</outgoing>
+      <script>this.environment.services.console.log( "objet 1 : waiting for pong" );
+next();</script>
+    </scriptTask>
+    <sequenceFlow id="Flow_1ja014u" sourceRef="Gateway_04321o7" targetRef="Activity_14j8e3h" />
+    <sequenceFlow id="Flow_0w5846e" sourceRef="Activity_14j8e3h" targetRef="Event_0wdbtf4" />
+    <intermediateThrowEvent id="Event_1856e2y" name="ping">
+      <incoming>Flow_06n2osu</incoming>
+      <outgoing>Flow_0akg17i</outgoing>
+      <signalEventDefinition id="SignalEventDefinition_1xw66hw" signalRef="Signal_29h9j1h" />
+    </intermediateThrowEvent>
+    <intermediateCatchEvent id="Event_0kqdasc" name="pong">
+      <incoming>Flow_1qgwaab</incoming>
+      <outgoing>Flow_1l8mvm3</outgoing>
+      <signalEventDefinition id="SignalEventDefinition_134tvxl" signalRef="Signal_2ur8tci" />
+    </intermediateCatchEvent>
+    <sequenceFlow id="Flow_06n2osu" sourceRef="Gateway_0mvulu3" targetRef="Event_1856e2y" />
+    <sequenceFlow id="Flow_0akg17i" sourceRef="Event_1856e2y" targetRef="Gateway_1t88zuk" />
+    <sequenceFlow id="Flow_1qgwaab" sourceRef="Gateway_1t88zuk" targetRef="Event_0kqdasc" />
+    <sequenceFlow id="Flow_1l8mvm3" sourceRef="Event_0kqdasc" targetRef="Gateway_04321o7" />
+    <scriptTask id="Activity_0eql8l2" name="debug : sending pong" scriptFormat="JavaScript">
+      <incoming>Flow_13nqmin</incoming>
+      <outgoing>Flow_02gq9rc</outgoing>
+      <script>this.environment.services.console.log( "objet 2 : sending pong" );
+next();</script>
+    </scriptTask>
+    <endEvent id="Event_0kjlc7i" name="end">
+      <incoming>Flow_1sj2akz</incoming>
+    </endEvent>
+    <parallelGateway id="Gateway_0035zen">
+      <incoming>Flow_1lwow5g</incoming>
+      <outgoing>Flow_13nqmin</outgoing>
+      <outgoing>Flow_0eckix5</outgoing>
+    </parallelGateway>
+    <intermediateThrowEvent id="Event_1vfew6s" name="pong">
+      <incoming>Flow_0eckix5</incoming>
+      <outgoing>Flow_08w4u7y</outgoing>
+      <signalEventDefinition id="SignalEventDefinition_157y9m1" signalRef="Signal_2ur8tci" />
+    </intermediateThrowEvent>
+    <sequenceFlow id="Flow_13f1a2l" sourceRef="Event_03pb4h8" targetRef="Activity_06wp0u2" />
+    <sequenceFlow id="Flow_13nqmin" sourceRef="Gateway_0035zen" targetRef="Activity_0eql8l2" />
+    <sequenceFlow id="Flow_0eckix5" sourceRef="Gateway_0035zen" targetRef="Event_1vfew6s" />
+    <startEvent id="Event_03pb4h8" name="ping">
+      <outgoing>Flow_13f1a2l</outgoing>
+      <signalEventDefinition id="SignalEventDefinition_06iwr9a" signalRef="Signal_29h9j1h" />
+    </startEvent>
+    <parallelGateway id="Gateway_0oxmexs">
+      <incoming>Flow_08w4u7y</incoming>
+      <incoming>Flow_02gq9rc</incoming>
+      <outgoing>Flow_18vg8mq</outgoing>
+    </parallelGateway>
+    <sequenceFlow id="Flow_08w4u7y" sourceRef="Event_1vfew6s" targetRef="Gateway_0oxmexs" />
+    <sequenceFlow id="Flow_02gq9rc" sourceRef="Activity_0eql8l2" targetRef="Gateway_0oxmexs" />
+    <sequenceFlow id="Flow_18vg8mq" sourceRef="Gateway_0oxmexs" targetRef="Activity_01vs5ml" />
+    <scriptTask id="Activity_06wp0u2" name="debug : ping received" scriptFormat="JavaScript">
+      <incoming>Flow_13f1a2l</incoming>
+      <outgoing>Flow_1lwow5g</outgoing>
+      <script>this.environment.services.console.log( "objet 2 : ping recieved" );
+next();</script>
+    </scriptTask>
+    <sequenceFlow id="Flow_1lwow5g" sourceRef="Activity_06wp0u2" targetRef="Gateway_0035zen" />
+    <scriptTask id="Activity_01vs5ml" name="debug : pong sent" scriptFormat="JavaScript">
+      <incoming>Flow_18vg8mq</incoming>
+      <outgoing>Flow_1sj2akz</outgoing>
+      <script>this.environment.services.console.log( "objet 2 : pong sendt" );
+next();</script>
+    </scriptTask>
+    <sequenceFlow id="Flow_1sj2akz" sourceRef="Activity_01vs5ml" targetRef="Event_0kjlc7i" />
+    <scriptTask id="Activity_14j8e3h" name="debug : pong recieved" scriptFormat="JavaScript">
+      <incoming>Flow_1ja014u</incoming>
+      <outgoing>Flow_0w5846e</outgoing>
+      <script>this.environment.services.console.log( "objet 1 : pong recieved" );
+next();</script>
+    </scriptTask>
+  </process>
+  <signal id="Signal_29h9j1h" name="ping" />
+  <signal id="Signal_2ur8tci" name="pong" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_10rmxjv">
+      <bpmndi:BPMNShape id="Event_0x806dn_di" bpmnElement="Event_0x806dn">
+        <dc:Bounds x="542" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="549" y="335" width="22" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0sqvefq_di" bpmnElement="Gateway_0mvulu3">
+        <dc:Bounds x="635" y="285" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1wkwons_di" bpmnElement="Gateway_04321o7">
+        <dc:Bounds x="1235" y="285" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0wdbtf4_di" bpmnElement="Event_0wdbtf4">
+        <dc:Bounds x="1552" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1561" y="335" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zbmtgb_di" bpmnElement="Activity_0pk9kqv">
+        <dc:Bounds x="780" y="180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1nqeakp_di" bpmnElement="Activity_1os9yvx">
+        <dc:Bounds x="1100" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0snurre_di" bpmnElement="Gateway_1t88zuk">
+        <dc:Bounds x="945" y="285" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1axr092_di" bpmnElement="Event_1856e2y">
+        <dc:Bounds x="812" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_16dam20_di" bpmnElement="Event_0kqdasc">
+        <dc:Bounds x="1132" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_167xas5_di" bpmnElement="Event_03pb4h8">
+        <dc:Bounds x="532" y="642" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="539" y="685" width="22" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1v77clv" bpmnElement="Activity_0eql8l2">
+        <dc:Bounds x="940" y="530" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1ez651o" bpmnElement="Gateway_0035zen">
+        <dc:Bounds x="795" y="635" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_0tm173l" bpmnElement="Event_1vfew6s">
+        <dc:Bounds x="972" y="732" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_186ueed" bpmnElement="Gateway_0oxmexs">
+        <dc:Bounds x="1105" y="635" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1ev7qe8" bpmnElement="Event_0kjlc7i">
+        <dc:Bounds x="1472" y="642" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1480" y="685" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1ugji7i" bpmnElement="Activity_06wp0u2">
+        <dc:Bounds x="640" y="620" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_00arcvq" bpmnElement="Activity_01vs5ml">
+        <dc:Bounds x="1260" y="620" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1f13tee_di" bpmnElement="Activity_14j8e3h">
+        <dc:Bounds x="1370" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1aembh1_di" bpmnElement="Flow_1aembh1">
+        <di:waypoint x="578" y="310" />
+        <di:waypoint x="635" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xhn5pe_di" bpmnElement="Flow_0xhn5pe">
+        <di:waypoint x="685" y="310" />
+        <di:waypoint x="720" y="310" />
+        <di:waypoint x="720" y="220" />
+        <di:waypoint x="780" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_05ndf0q_di" bpmnElement="Flow_05ndf0q">
+        <di:waypoint x="880" y="220" />
+        <di:waypoint x="970" y="220" />
+        <di:waypoint x="970" y="285" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0l14mu5_di" bpmnElement="Flow_0l14mu5">
+        <di:waypoint x="995" y="310" />
+        <di:waypoint x="1020" y="310" />
+        <di:waypoint x="1020" y="220" />
+        <di:waypoint x="1100" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14tl2vt_di" bpmnElement="Flow_14tl2vt">
+        <di:waypoint x="1200" y="220" />
+        <di:waypoint x="1260" y="220" />
+        <di:waypoint x="1260" y="285" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ja014u_di" bpmnElement="Flow_1ja014u">
+        <di:waypoint x="1285" y="310" />
+        <di:waypoint x="1370" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0w5846e_di" bpmnElement="Flow_0w5846e">
+        <di:waypoint x="1470" y="310" />
+        <di:waypoint x="1552" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_06n2osu_di" bpmnElement="Flow_06n2osu">
+        <di:waypoint x="685" y="310" />
+        <di:waypoint x="720" y="310" />
+        <di:waypoint x="720" y="400" />
+        <di:waypoint x="812" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0akg17i_di" bpmnElement="Flow_0akg17i">
+        <di:waypoint x="848" y="400" />
+        <di:waypoint x="970" y="400" />
+        <di:waypoint x="970" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1qgwaab_di" bpmnElement="Flow_1qgwaab">
+        <di:waypoint x="995" y="310" />
+        <di:waypoint x="1020" y="310" />
+        <di:waypoint x="1020" y="400" />
+        <di:waypoint x="1132" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1l8mvm3_di" bpmnElement="Flow_1l8mvm3">
+        <di:waypoint x="1168" y="400" />
+        <di:waypoint x="1260" y="400" />
+        <di:waypoint x="1260" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_1hmq66f" bpmnElement="Flow_13f1a2l">
+        <di:waypoint x="568" y="660" />
+        <di:waypoint x="640" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_0atq606" bpmnElement="Flow_13nqmin">
+        <di:waypoint x="845" y="660" />
+        <di:waypoint x="880" y="660" />
+        <di:waypoint x="880" y="570" />
+        <di:waypoint x="940" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_0z0l7g3" bpmnElement="Flow_02gq9rc">
+        <di:waypoint x="1040" y="570" />
+        <di:waypoint x="1130" y="570" />
+        <di:waypoint x="1130" y="635" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_18vg8mq_di" bpmnElement="Flow_18vg8mq">
+        <di:waypoint x="1155" y="660" />
+        <di:waypoint x="1260" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_0f8tv2o" bpmnElement="Flow_0eckix5">
+        <di:waypoint x="845" y="660" />
+        <di:waypoint x="880" y="660" />
+        <di:waypoint x="880" y="750" />
+        <di:waypoint x="972" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_1rxzpnk" bpmnElement="Flow_08w4u7y">
+        <di:waypoint x="1008" y="750" />
+        <di:waypoint x="1130" y="750" />
+        <di:waypoint x="1130" y="685" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1lwow5g_di" bpmnElement="Flow_1lwow5g">
+        <di:waypoint x="740" y="660" />
+        <di:waypoint x="795" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1sj2akz_di" bpmnElement="Flow_1sj2akz">
+        <di:waypoint x="1360" y="660" />
+        <di:waypoint x="1472" y="660" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

@@ -1,50 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1tvdujm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js-token-simulation" exporterVersion="0.1.5">
-  <bpmn:signal id="Signal_3s4qp90" name="done" />
-  <bpmn:signal id="Signal_0lmf12i" name="target_found" />
-  <bpmn:signal id="Signal_12llsds" name="ciao" />
-  <bpmn:process id="Process_10w0plj" isExecutable="true" >
-    <bpmn:startEvent id="Event_1dmzjdj" name="start">
-      <bpmn:outgoing>Flow_1bku6or</bpmn:outgoing>
-    </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_1bku6or" sourceRef="Event_1dmzjdj" targetRef="Activity_1onsngv" />
-    <bpmn:scriptTask id="Activity_1onsngv" name="hello world" scriptFormat="JavaScript">
-      <bpmn:incoming>Flow_1bku6or</bpmn:incoming>
-      <bpmn:outgoing>Flow_1o5b45s</bpmn:outgoing>
-      <bpmn:script>this.environment.services.console.log("hello world !");
-next();</bpmn:script>
-    </bpmn:scriptTask>
-    <bpmn:endEvent id="Event_0zlyngt" name="end">
-      <bpmn:incoming>Flow_1o5b45s</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_1o5b45s" sourceRef="Activity_1onsngv" targetRef="Event_0zlyngt" />
-  </bpmn:process>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+             id="Definitions_1tvdujm"
+             targetNamespace="http://bpmn.io/schema/bpmn"
+             exporter="bpmn-js-token-simulation"
+             exporterVersion="0.1.5">
+
+  <signal id="Signal_3s4qp90" name="done" />
+  <signal id="Signal_0lmf12i" name="target_found" />
+  <signal id="Signal_12llsds" name="ciao" />
+
+  <process id="Process_10w0plj" isExecutable="true">
+    <startEvent id="Event_1dmzjdj" name="start">
+      <outgoing>Flow_1bku6or</outgoing>
+    </startEvent>
+
+    <sequenceFlow id="Flow_1bku6or" sourceRef="Event_1dmzjdj" targetRef="Activity_1onsngv" />
+
+    <scriptTask id="Activity_1onsngv" name="hello world" scriptFormat="JavaScript">
+      <incoming>Flow_1bku6or</incoming>
+      <outgoing>Flow_1o5b45s</outgoing>
+      <script>
+        this.environment.services.console.log("hello world !");
+        next();
+      </script>
+    </scriptTask>
+
+    <endEvent id="Event_0zlyngt" name="end">
+      <incoming>Flow_1o5b45s</incoming>
+    </endEvent>
+
+    <sequenceFlow id="Flow_1o5b45s" sourceRef="Activity_1onsngv" targetRef="Event_0zlyngt" />
+  </process>
+
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_10w0plj">
       <bpmndi:BPMNShape id="Event_1dmzjdj_di" bpmnElement="Event_1dmzjdj">
         <dc:Bounds x="262" y="362" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="269" y="405" width="22" height="14" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="Activity_0gjb4rl_di" bpmnElement="Activity_1onsngv">
         <dc:Bounds x="350" y="340" width="100" height="80" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="Event_0zlyngt_di" bpmnElement="Event_0zlyngt">
         <dc:Bounds x="502" y="362" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="511" y="405" width="19" height="14" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+
       <bpmndi:BPMNEdge id="Flow_1bku6or_di" bpmnElement="Flow_1bku6or">
         <di:waypoint x="298" y="380" />
         <di:waypoint x="350" y="380" />
       </bpmndi:BPMNEdge>
+
       <bpmndi:BPMNEdge id="Flow_1o5b45s_di" bpmnElement="Flow_1o5b45s">
         <di:waypoint x="450" y="380" />
         <di:waypoint x="502" y="380" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
-</bpmn:definitions>
+</definitions>
