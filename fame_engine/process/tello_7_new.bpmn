@@ -8,28 +8,35 @@
         <bpmn:incoming>Flow_060nm9x</bpmn:incoming>
         <bpmn:outgoing>Flow_1913056</bpmn:outgoing>
         <bpmn:script>
-  var node = this.environment.variables.ros_node;
+var node = this.environment.variables.ros_node;
+var Types = this.environment.services.Types;
 
-  //this.environment.services.console.log("typeof this.environment.services.rclnodejs", typeof this.environment.services.rclnodejs);
-  //this.environment.services.console.log(this.environment.services.rclnodejs);
+this.environment.services.console.log("[takeoff] Types ?", Types &amp;&amp; Object.keys(Types));
+this.environment.services.console.log("[takeoff] Types.TelloAction ?", typeof (Types &amp;&amp; Types.TelloAction));
 
-  //this.environment.services.console.log("rclnodejs.isInitialized():", this.environment.services.rclnodejs.isInitialized());
-  const client = node.createClient("tello_msgs/srv/TelloAction", "tello_action");
-  const request = new Object();
-  request["cmd"] = "takeoff";
+try {
+  this.environment.services.console.log("[takeoff] Before createClient");
+  // NOM ABSOLU du service (evite l impact du namespace /tello_7)
+  const client = node.createClient(Types.TelloAction, "/tello_action");
+  this.environment.services.console.log("[takeoff] After createClient");
 
-  client.waitForService(1000).then((result) =&gt; {
-      if (!result) {
-          this.environment.services.console.log("Error: service not available");
-          return;
-      }
-      this.environment.services.console.log("Sending: ", request);
-      client.sendRequest(request, (response) =&gt; {
-          this.environment.services.console.log("Result: ", response);
-      });
+  const request = { cmd: "takeoff" };
+
+  this.environment.services.console.log("[takeoff] Before waitForService");
+  client.waitForService(1000).then((ok) =&gt; {
+    this.environment.services.console.log("[takeoff] After waitForService -&gt;", ok);
+    if (!ok) return next();
+    this.environment.services.console.log("[takeoff] Sending:", request);
+    client.sendRequest(request, (resp) =&gt; {
+      this.environment.services.console.log("[takeoff] Result:", resp);
+      next();
+    });
   });
-  this.environment.services.console.log("taking off");
-  next();</bpmn:script>
+} catch (e) {
+  this.environment.services.console.error("[takeoff] createClient failed:", e);
+  next(); // ne bloque pas le process si erreur JS
+}
+</bpmn:script>
       </bpmn:scriptTask>
       <bpmn:intermediateCatchEvent id="Event_1t9d9el">
         <bpmn:incoming>Flow_1913056</bpmn:incoming>

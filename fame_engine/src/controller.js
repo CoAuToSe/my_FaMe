@@ -141,6 +141,22 @@ function merge_callActivity() {
 rclnodejs.init().then(() => {
     //start ROS node
     const node = rclnodejs.createNode('engine_node');
+    const geometry_msgs = rclnodejs.require('geometry_msgs');
+    const tello_msgs = rclnodejs.require('tello_msgs');
+
+    try {
+        rclnodejs.createMessageObject('geometry_msgs/msg/Twist');
+        rclnodejs.createMessageObject('tello_msgs/srv/TelloAction_Request');
+        console.log('[controller] ROS types loaded');
+    } catch (e) {
+        console.error('[controller] Type loading failed:', e);
+    }
+
+    // Expose dans services pour tes scripts BPMN
+    const Types = {
+        Twist: geometry_msgs.msg.Twist,
+        TelloAction: tello_msgs.srv.TelloAction,
+    };
 
     // # Options for cmd 
     function getArg(flag, def = undefined) {
@@ -291,6 +307,7 @@ rclnodejs.init().then(() => {
     }, { noAck: true });
 
 
+    const clients = new Map(); // (voir étape 2 pour remplir)
     engine.execute({
         listener,
         variables: {
@@ -302,6 +319,12 @@ rclnodejs.init().then(() => {
 
             // to be able to print in the console
             console,
+
+            // expose rclnodejs and the node to the sandbox
+            rclnodejs,
+            ros_node: node,
+            clients, // optionnel mais recommandé (voir ci-dessous)
+            Types,
 
             // timers Node déjà exposés si besoin
             setTimeout,
