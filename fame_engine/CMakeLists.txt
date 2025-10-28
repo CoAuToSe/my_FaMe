@@ -69,10 +69,17 @@ install(DIRECTORY
 # find_package(ament_cmake REQUIRED)
 
 add_custom_target(${PROJECT_NAME}_npm ALL
-  COMMAND bash -lc 'export NVM_DIR="$$HOME/.nvm" && . $$NVM_DIR/nvm.sh && npm install --no-progress --silent rclnodejs@latest'
+  COMMAND bash -lc 'export NVM_DIR="$$HOME/.nvm" && . $$NVM_DIR/nvm.sh && npm install --no-progress --silent rclnodejs@1.5.2 bpmn-engine@25.0.0'
   # COMMAND bash -lc "npm install rclnodejs@latest"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+add_custom_target(${PROJECT_NAME}_bpmn_engine_correct ALL
+  COMMAND bash -c "sed -i 's/if \\(!language\\) return\\;/if \\(!language\\) language = \\\"JavaScript\\\"\\;/g' ${CMAKE_CURRENT_SOURCE_DIR}/node_modules/bpmn-engine/lib/index.cjs"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_dependencies(${PROJECT_NAME}_bpmn_engine_correct ${PROJECT_NAME}_npm)
 
 # Installez les artefacts nécessaires à l’exécution
 install(DIRECTORY process/ DESTINATION share/${PROJECT_NAME}/process)
