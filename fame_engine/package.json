@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "bent": "^7.3.12",
-    "bpmn-engine": "^14.0.0",
+    "bpmn-engine": "^25.0.0",
     "camunda-bpmn-moddle": "^6.1.2",
     "fs": "^0.0.1-security",
     "jsdom": "^19.0.0",

@@ -16,7 +16,7 @@ def generate_launch_description():
 
     launch_args = [
         DeclareLaunchArgument('namespace', default_value='/tello_7'),
-        DeclareLaunchArgument('bpmn', default_value='tello_7')
+        DeclareLaunchArgument('bpmn', default_value='if_cond')
     ]
     # revise path to your nodejs start file
     start_js_file = os.path.join(
