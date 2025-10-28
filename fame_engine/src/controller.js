@@ -14,7 +14,7 @@ var topic_dict = {};
 
 var source = '';
 var engine_env = {};
-var process_path = '../fame_engine/process/';
+var process_path = '/process/';
 var process_dict = {};
 
 //console.log(__dirname.split('/install')[0] + '/process')
@@ -35,7 +35,7 @@ function stripNS(obj) {
 }
 
 // function to load the bpmn file correctly
-function writeProcess(source_process) {
+function writeProcess(source_process, node) {
     var conversion = convert.xml2json(source_process, { compact: true, spaces: 4 });
     conversion = conversion.replace(/'/g, '"');
     var conversion_obj_raw = JSON.parse(conversion);
@@ -47,8 +47,17 @@ function writeProcess(source_process) {
     var caObjs = processObj['callActivity'];
 
     // helper: resolve the actual file to read for a called activity
-    function resolveCalledFile(called_act) {
-        const basePath = path.join(process_path, called_act);
+    function resolveCalledFile(called_act, node) {
+        const basePath = path.join(process.cwd() + process_path, called_act);
+        // console.log(basePath);
+        // console.log(fs.existsSync(basePath));
+        // console.log(fs.statSync("/home/dell/PFE/my_FaMe/fame_engine/process/say_something").isDirectory());
+        // console.log(fs.statSync(basePath).isDirectory());
+        // console.log(process.cwd());
+        // console.log(typeof node !== 'undefined');
+        // console.log(node);
+        // console.log(node.namespace().replace("/", ""));
+        // console.log(typeof node.namespace === 'function');
         try {
             // if called_act points to a directory AND node.namespace() exists,
             // try: <dir>/<namespace>.bpmn
@@ -56,7 +65,8 @@ function writeProcess(source_process) {
                 && typeof node !== 'undefined'
                 && node && typeof node.namespace === 'function') {
 
-                const nsPath = path.join(basePath, `${node.namespace()}.bpmn`);
+                const nsPath = path.join(basePath, `${node.namespace().replace("/", "")}.bpmn`);
+                // console.log(nsPath)
                 if (fs.existsSync(nsPath)) return nsPath;
                 // fall back to original behavior if namespaced file not found
             }
@@ -73,14 +83,14 @@ function writeProcess(source_process) {
             // for each item in call activity 
             for (let i = 0; i < caObjs.length; i++) {
                 var called_act = caObjs[i]._attributes.calledElement;
-                var ca_file = resolveCalledFile(called_act);
+                var ca_file = resolveCalledFile(called_act, node);
                 var ca_source = fs.readFileSync(ca_file, 'utf8');
                 process_dict[called_act] = [ca_source, false];
             }
         } else {
             // single callActivity object
             var called_act = caObjs._attributes.calledElement;
-            var ca_file = resolveCalledFile(called_act);
+            var ca_file = resolveCalledFile(called_act, node);
             var ca_source = fs.readFileSync(ca_file, 'utf8');
             process_dict[called_act] = [ca_source, false];
         }
@@ -90,14 +100,14 @@ function writeProcess(source_process) {
     Object.keys(process_dict).forEach(element => {
         if (!process_dict[element][1]) {
             process_dict[element][1] = true;
-            writeProcess(process_dict[element][0]);
+            writeProcess(process_dict[element][0], node);
         }
     });
 }
 
 
 // try something with the subprocess (can't really tell as I don't have an example)
-function merge_callActivity() {
+function merge_callActivity(source, node) {
     // conversion from xml to object
     var xml = source;
     var conversion = convert.xml2json(xml, { compact: true, spaces: 4 });
@@ -120,7 +130,7 @@ function merge_callActivity() {
         conversion_obj['definitions']['process']['subProcess'] = spObjs;
         //console.log(spObjs);
     }
-    writeProcess(source);
+    writeProcess(source, node);
     var arr_temp_process = [processObj];
 
     Object.keys(process_dict).forEach(element => {
@@ -190,8 +200,8 @@ rclnodejs.init().then(() => {
 
     // var process_name = node.namespace().replace('/', '');
     // source = (fs.readFileSync(process_path + process_name + '.bpmn', 'utf8'));
-    source = (fs.readFileSync(process_path + bpmn_name + '.bpmn', 'utf8'));
-    merge_callActivity();
+    source = (fs.readFileSync(process.cwd() + process_path + bpmn_name + '.bpmn', 'utf8'));
+    merge_callActivity(source, node);
     //fs.writeFileSync(process_path+'res.bpmn', source);
 
     var tstart = 0;
