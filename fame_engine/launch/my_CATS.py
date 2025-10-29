@@ -15,7 +15,7 @@ def generate_launch_description():
     share_directory = get_package_share_directory('fame_engine')
 
     launch_args = [
-        DeclareLaunchArgument('namespace', default_value='/tello'),
+        DeclareLaunchArgument('namespace', default_value='/husky'),
         DeclareLaunchArgument('bpmn', default_value='say_call')
     ]
     # revise path to your nodejs start file

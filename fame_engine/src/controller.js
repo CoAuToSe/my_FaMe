@@ -14,7 +14,7 @@ var topic_dict = {};
 
 var source = '';
 var engine_env = {};
-var process_path = '/process/';
+var process_path = 'process/';
 var process_dict = {};
 
 //console.log(__dirname.split('/install')[0] + '/process')
@@ -34,117 +34,223 @@ function stripNS(obj) {
     return obj;
 }
 
-// function to load the bpmn file correctly
-function writeProcess(source_process, node) {
-    var conversion = convert.xml2json(source_process, { compact: true, spaces: 4 });
-    conversion = conversion.replace(/'/g, '"');
-    var conversion_obj_raw = JSON.parse(conversion);
-    var conversion_obj = stripNS(conversion_obj_raw);
+// --- BUNDLING HELPERS ---
+const os = require('os');
 
-    // get inside the description of the process
-    var processObj = conversion_obj['definitions']['process'];
-    // get any callActivity
-    var caObjs = processObj['callActivity'];
+function resolveBaseDir(pth) {
+  // 1) absolu ou ~
+  const maybeAbs = expandUser(pth);
+  if (path.isAbsolute(maybeAbs)) return maybeAbs;
 
-    // helper: resolve the actual file to read for a called activity
-    function resolveCalledFile(called_act, node) {
-        const basePath = path.join(process.cwd() + process_path, called_act);
-        // console.log(basePath);
-        // console.log(fs.existsSync(basePath));
-        // console.log(fs.statSync("/home/dell/PFE/my_FaMe/fame_engine/process/say_something").isDirectory());
-        // console.log(fs.statSync(basePath).isDirectory());
-        // console.log(process.cwd());
-        // console.log(typeof node !== 'undefined');
-        // console.log(node);
-        // console.log(node.namespace().replace("/", ""));
-        // console.log(typeof node.namespace === 'function');
-        try {
-            // if called_act points to a directory AND node.namespace() exists,
-            // try: <dir>/<namespace>.bpmn
-            if (fs.existsSync(basePath) && fs.statSync(basePath).isDirectory()
-                && typeof node !== 'undefined'
-                && node && typeof node.namespace === 'function') {
+  // 2) candidats quand c'est relatif
+  const candidates = [
+    path.join(process.cwd(), pth),           // CWD (lancement)
+    path.join(__dirname, pth),               // dossier du script (dist/)
+    path.join(__dirname, '..', pth),         // parent du script (share/fame_engine/)
+  ];
 
-                const nsPath = path.join(basePath, `${node.namespace().replace("/", "")}.bpmn`);
-                // console.log(nsPath)
-                if (fs.existsSync(nsPath)) return nsPath;
-                // fall back to original behavior if namespaced file not found
-            }
-        } catch (_) {
-            // ignore and fall back to original behavior
-        }
-        // original: <process_path>/<called_act>.bpmn
-        return `${basePath}.bpmn`;
-    }
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c) && fs.statSync(c).isDirectory()) return c;
+    } catch (_) {}
+  }
 
-    // if there is a call activity inside the BPMN
-    if (caObjs) {
-        if (Array.isArray(caObjs)) {
-            // for each item in call activity 
-            for (let i = 0; i < caObjs.length; i++) {
-                var called_act = caObjs[i]._attributes.calledElement;
-                var ca_file = resolveCalledFile(called_act, node);
-                var ca_source = fs.readFileSync(ca_file, 'utf8');
-                process_dict[called_act] = [ca_source, false];
-            }
-        } else {
-            // single callActivity object
-            var called_act = caObjs._attributes.calledElement;
-            var ca_file = resolveCalledFile(called_act, node);
-            var ca_source = fs.readFileSync(ca_file, 'utf8');
-            process_dict[called_act] = [ca_source, false];
-        }
-    }
-
-    // call the writeProcess recursively each new process that should be read
-    Object.keys(process_dict).forEach(element => {
-        if (!process_dict[element][1]) {
-            process_dict[element][1] = true;
-            writeProcess(process_dict[element][0], node);
-        }
-    });
+  // fallback: retourne tel quel (laissera l'erreur explicite en aval)
+  return pth;
 }
 
 
-// try something with the subprocess (can't really tell as I don't have an example)
-function merge_callActivity(source, node) {
-    // conversion from xml to object
-    var xml = source;
-    var conversion = convert.xml2json(xml, { compact: true, spaces: 4 });
-    conversion = conversion.replace(/'/g, '"');
-    var conversion_obj_raw = JSON.parse(conversion);
-    var conversion_obj = stripNS(conversion_obj_raw);
-    // console.log(conversion_obj);
-    // get inside the description of the process
-    var processObj = conversion_obj['definitions']['process'];
-    var caObjs = processObj['callActivity'];
-    var spObjs = processObj['subProcess'];
-    if (spObjs) { //the param triggeredByEvent = true blocks the execution of the subprocess
-        if (spObjs.length) {
-            for (let i = 0; i < caObjs.length; i++) {
-                spObjs[i]._attributes.triggeredByEvent = false;
-            }
-        } else {
-            spObjs._attributes.triggeredByEvent = false;
-        }
-        conversion_obj['definitions']['process']['subProcess'] = spObjs;
-        //console.log(spObjs);
+function expandUser(p) {
+  return (typeof p === 'string' && p.startsWith('~'))
+    ? path.join(os.homedir(), p.slice(1))
+    : p;
+}
+
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function safeListBpmnFiles(dir) {
+  const out = [];
+  try {
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const it of items) {
+      const full = path.join(dir, it.name);
+      if (it.isFile() && it.name.endsWith('.bpmn')) out.push(full);
+      else if (it.isDirectory()) {
+        try {
+          const sub = fs.readdirSync(full, { withFileTypes: true });
+          for (const s of sub) {
+            const f = path.join(full, s.name);
+            if (s.isFile() && s.name.endsWith('.bpmn')) out.push(f);
+          }
+        } catch (_) {}
+      }
     }
-    writeProcess(source, node);
-    var arr_temp_process = [processObj];
+  } catch (_) {}
+  return out;
+}
 
-    Object.keys(process_dict).forEach(element => {
-        var conv = convert.xml2json(process_dict[element][0], { compact: true, spaces: 4 });
-        conv = conv.replace(/'/g, '"');
-        var ca_c_raw = JSON.parse(conv);
-        var ca_c = stripNS(ca_c_raw);
-        var process_push = ca_c['definitions']['process'];
-        arr_temp_process.push(process_push);
-        conversion_obj['definitions']['process'] = arr_temp_process;
+function extractInnerDefinitions(xml, fileLabel = '') {
+  const m = xml.match(/<bpmn:definitions[\s\S]*?>([\s\S]*?)<\/bpmn:definitions>/);
+  if (!m) throw new Error(`Pas de <bpmn:definitions> dans: ${fileLabel || 'source in-memory'}`);
+  return m[1];
+}
+
+function usesNamespace(xml, nsPrefixWithColon) {
+  const re = new RegExp(`\\b${nsPrefixWithColon.replace(':', '\\:')}`);
+  return re.test(xml);
+}
+
+function makeBundle(xmlStrings) {
+  // Ajoute automatiquement camunda si au moins un document l’utilise.
+  const needsCamunda = xmlStrings.some(x => usesNamespace(x, 'camunda:'));
+
+  const header = [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"`,
+    `  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"`,
+    `  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"`,
+    `  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"`,
+    `  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"${needsCamunda ? `\n  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"` : ''}`,
+    `  targetNamespace="http://bpmn.io/schema/bpmn">`
+  ].join('\n');
+
+  const body = xmlStrings.map((xml, i) => extractInnerDefinitions(xml, `bundle#${i}`)).join('\n');
+  return `${header}\n${body}\n</bpmn:definitions>`;
+}
+
+// ---  ---
+// --- CALL ACTIVITY RESOLUTION ---
+
+function resolveCalledFile(blockName, node) {
+  if (!blockName) throw new Error('[resolveCalledFile] blockName vide');
+  const baseDir = resolveBaseDir(process_path);       // ex: .../share/fame_engine/process/
+  const ns = (node && typeof node.namespace === 'function')
+    ? node.namespace().replace(/\//g, '')
+    : '';
+
+  // Candidats EXACTEMENT selon ta règle
+  const candA = path.join(baseDir, `${blockName}.bpmn`);
+  const candB = ns ? path.join(baseDir, blockName, `${ns}.bpmn`) : null;
+
+  // (optionnel mais pratique) variante tolérante: process/<bloc>/<bloc>.bpmn
+  const candC = path.join(baseDir, blockName, `${blockName}.bpmn`);
+
+  // Debug utile
+  // console.log('[resolveCalledFile]', { baseDir, candA, candB, candC });
+
+  if (fs.existsSync(candA)) return candA;
+  if (candB && fs.existsSync(candB)) return candB;
+  if (fs.existsSync(candC)) return candC;
+
+  // Trace claire si rien trouvé
+  console.error('[resolveCalledFile] NOT FOUND for block:', blockName);
+  console.error('  tried:', candA, candB || '(no ns)', candC);
+  throw new Error(`[resolveCalledFile] Introuvable: ${blockName} (baseDir: ${baseDir})`);
+}
+
+
+// Utilitaires
+
+// function safeListBpmnFiles(dir) {
+//   // récursif light: parcours dir et sous-dossiers 1 niveau (suffit souvent)
+//   const acc = [];
+//   try {
+//     const items = fs.readdirSync(dir, { withFileTypes: true });
+//     for (const it of items) {
+//       const full = path.join(dir, it.name);
+//       if (it.isFile() && it.name.endsWith('.bpmn')) acc.push(full);
+//       else if (it.isDirectory()) {
+//         // un niveau de profondeur
+//         try {
+//           const sub = fs.readdirSync(full, { withFileTypes: true });
+//           for (const s of sub) {
+//             const f = path.join(full, s.name);
+//             if (s.isFile() && s.name.endsWith('.bpmn')) acc.push(f);
+//           }
+//         } catch (_) {}
+//       }
+//     }
+//   } catch (_) {}
+//   return acc;
+// }
+
+// function escapeRe(s) {
+//   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// }
+
+// Parcours le XML courant, trouve les Call Activities, lit leurs fichiers, enregistre les sources
+function writeProcess(source_process, node) {
+    const conversion = convert.xml2json(source_process, { compact: true, spaces: 2 }).replace(/'/g, '"');
+    const conversion_obj = stripNS(JSON.parse(conversion));
+
+    const defs = conversion_obj?.definitions;
+    if (!defs) return;
+
+    const processObj = defs.process; // peut être array ou objet
+    if (!processObj) return;
+
+    const processes = Array.isArray(processObj) ? processObj : [processObj];
+
+    for (const p of processes) {
+        const caObjs = p.callActivity;
+        if (!caObjs) continue;
+
+        const calls = Array.isArray(caObjs) ? caObjs : [caObjs];
+        for (const ca of calls) {
+            const attrs = ca?._attributes || {};
+            // PRIORITÉ: calledElement (ID BPMN), FALLBACK: name (convention fichier)
+            // const calledElementId = attrs.calledElement && String(attrs.calledElement).trim();
+            // const calledByName     = attrs.name && String(attrs.name).trim();
+            // const calledElementId = attrs.calledElement && String(attrs.calledElement).trim();
+            // const calledByName     = attrs.name && String(attrs.name).trim();
+            // const calledKey = (calledElementId || calledByName);
+
+
+            // // const calledKey = (calledElementId || calledByName);
+            // if (!calledKey) continue;
+
+            // const ca_file = resolveCalledFile(calledKey, node);
+            // const ca_source = fs.readFileSync(ca_file, 'utf8');
+
+            // if (!process_dict[calledKey]) {
+            //     process_dict[calledKey] = [ca_source, false];
+            // }
+            // const attrs = ca?._attributes || {};
+            const blockName = attrs.name && String(attrs.name).trim();
+            if (!blockName) continue;
+
+            const ca_file = resolveCalledFile(blockName, node);
+            const ca_source = fs.readFileSync(ca_file, 'utf8');
+
+            if (!process_dict[blockName]) {
+                process_dict[blockName] = [ca_source, false];
+            }
+        }
+    }
+
+    // Récursif : aller chercher les Call Activities des sous-process lus
+    Object.keys(process_dict).forEach(key => {
+        if (!process_dict[key][1]) {
+        process_dict[key][1] = true;
+        writeProcess(process_dict[key][0], node);
+        }
     });
+}
+function merge_callActivity(rootXml, node) {
+  // 1) Indexer tous les sous-process via writeProcess (remplit process_dict)
+  process_dict = {}; // reset pour éviter des reliquats
+  writeProcess(rootXml, node);
 
-    var result = convert.json2xml(conversion_obj, { compact: true, ignoreComment: true, spaces: 4 });
-    source = result;
+  // 2) Construire la liste des sources à fusionner : racine + tous les sous-process
+  const allSources = [rootXml, ...Object.values(process_dict).map(([xml]) => xml)];
+
+  // 3) Bundler dans une seule <bpmn:definitions> (option B)
+  // ⚠️ On NE repasse PAS par xml-js ici (sinon on perd les prefixes).
+  const bundled = makeBundle(allSources);
+
+  return bundled;
 }
 
 // main execution
@@ -200,8 +306,20 @@ rclnodejs.init().then(() => {
 
     // var process_name = node.namespace().replace('/', '');
     // source = (fs.readFileSync(process_path + process_name + '.bpmn', 'utf8'));
-    source = (fs.readFileSync(process.cwd() + process_path + bpmn_name + '.bpmn', 'utf8'));
-    merge_callActivity(source, node);
+    // source = fs.readFileSync(path.resolve(process.cwd(), process_path.replace(/^~\//, ''), `${bpmn_name}.bpmn`), 'utf8');
+    // source = merge_callActivity(source, node);
+    const baseDir = resolveBaseDir(process_path);
+    source = fs.readFileSync(path.join(baseDir, `${bpmn_name}.bpmn`), 'utf8');
+    source = merge_callActivity(source, node);
+
+// (debug utile)
+// console.log('[BPMN baseDir]', baseDir);
+// fs.writeFileSync(path.join(baseDir, '__bundle_debug__.bpmn'), source);
+
+
+    // (optionnel) pour debug
+    // fs.writeFileSync(path.resolve(process.cwd(), 'bundle.bpmn'), source, 'utf8');
+
     //fs.writeFileSync(process_path+'res.bpmn', source);
 
     var tstart = 0;
